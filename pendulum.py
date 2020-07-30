@@ -109,7 +109,7 @@ solution = solve_ivp(
     init_state, 
     t_eval=np.linspace(0,S_TFINAL,num=(S_TPS*S_TFINAL)), 
     args=(forces, params, force_output, energy, momentum),
-    method='BDF'
+    method='RK45'
     )
 print(solution)
 
