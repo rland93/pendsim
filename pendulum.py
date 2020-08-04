@@ -174,80 +174,82 @@ class Simulation(object):
                 'pendulum momentum': ps_pend, 
                 'total momentum': ps_tot})
 
-pendulum = Pendulum(10,5,5,9.81, np.array([0,0,0.5,0]))
-sim = Simulation(pendulum, .01, 5,[(1,0.5,2.5)])
-df = sim.simulate()
+class Visualizer(object):
+    def __init__(self, data, pendulum, save=False, cart_display_width=2, cart_height=1, viz_limit=10, viz_size=10):
+        '''
+        Viz refers to the animation visualization
+        '''
+        self.data = data
+        self.pendulum = pendulum
+        self.save = save
+        self.cart_display_width = cart_display_width # cart width
+        self.cart_height = cart_height # cart height
+        self.viz_limit = viz_limit # x, y limits
+        self.viz_size = viz_size
+
+    def display_viz(self):
+        viz = plt.figure(figsize=(self.viz_size, self.viz_size))
+        ax = plt.axes()
+        ax.set_xlim(-self.viz_limit, self.viz_limit)
+        ax.set_ylim(-self.viz_limit, self.viz_limit)
+        cart = patches.Rectangle((-self.cart_display_width * 0.5, self.cart_height), width=self.cart_display_width, height=-self.cart_height, ec='black', fc='salmon')
+        mass = patches.Circle((0,0), radius=np.sqrt(5)*0.14, fc='skyblue', ec='black')
+        line = patches.FancyArrow(0,0,1,1)
+        time_text = text.Annotation('', (4,4), xycoords='axes points')
+        def init():
+            ax.add_patch(cart)
+            ax.add_patch(mass)
+            ax.add_patch(line)
+            ax.add_artist(time_text)
+            return [mass, cart, time_text, line]
+
+        # matplotlib animate doesn't play nice with dataframes :(
+        animate_x = data['x'].values.tolist()
+        animate_theta = data['theta'].values.tolist()
+        animate_times = data.index.values.tolist()
+        frames = len(data.index)
+        def animate(i):
+            x = animate_x[i] # position
+            th = animate_theta[i] # angle
+            massxy = (x + self.pendulum.l * np.sin(th), self.cart_height + self.pendulum.l * np.cos(th))
+            cartxy_visible = (x - self.cart_display_width*.5, self.cart_height)
+            cartxy_true = (x, self.cart_height)
+            mass.set_center(massxy)
+            cart.set_xy(cartxy_visible)
+            line.set_xy((massxy, cartxy_true))
+            time_text.set_text("t="+str(animate_times[i]))
+            return [mass, cart, time_text, line]
+        animation = FuncAnimation(viz, animate, frames, init_func=init, blit=True, interval= .1)
+        if self.save:
+            animation.save('video.mp4', fps=30)
+        plt.show()
+    
+    def display_plots(self):
+        figure = plt.figure()
+        ax1 = figure.add_subplot(211)
+        ax2 = figure.add_subplot(212)
+        ax1.plot(self.data['x'],label=r'$x$')
+        ax1.plot(self.data['xdot'],label=r'$\dot{x}$')
+        ax1.plot(self.data['theta'],label=r'$\theta$')
+        ax1.plot(self.data['thetadot'],label=r'$\dot{\theta}$')
+        ax1.legend()
+        
+        ax2.plot(self.data['cart momentum'], label='cart momentum')
+        ax2.plot(self.data['pendulum momentum'], label='pendulum momentum')
+        ax2.plot(self.data['total momentum'], label='total momentum')
+        ax2.plot(self.data['energy'], label='energy')
+        ax2.legend()
+
+        return figure
 
 
-C_WIDTH = 2
-CART_Y = 1
-CART_DISPLAY_WIDTH = 2
+if __name__ == "__main__":
+    pendulum = Pendulum(10,5,5,9.81, np.array([0,0,0.5,0]))
+    sim = Simulation(pendulum, .01, 5,[(1,0.5,2.5)])
+    data = sim.simulate()
+    print(data)
 
-# Set up figure
-gs = GridSpec(2,5)
-fig = plt.figure(figsize=(20,8))
-
-# Animation window
-ax1 = fig.add_subplot(gs[:,:2])
-ax1.set_xlim(-10, 10)
-ax1.set_ylim(-10, 10)
-cart = patches.Rectangle((-C_WIDTH*.5,CART_Y), width=CART_DISPLAY_WIDTH, height=-CART_Y, ec='black', fc='salmon')
-mass = patches.Circle((0,0), radius=np.sqrt(5)*.14, fc='skyblue', ec='black')
-line = patches.FancyArrow(0,0,1,1)
-time_text = text.Annotation('', (4,4), xycoords='axes points')
-ax1.grid(True)
-
-# Initialize animation object
-def init():
-    ax1.add_patch(mass)
-    ax1.add_patch(cart)
-    ax1.add_artist(time_text)
-    ax1.add_patch(line)
-    return [mass, cart, time_text, line]
-
-# Animate ith frame
-def animate(i):
-    x = df['x'][i] # position
-    th = df['theta'][i] # angle
-    massxy = (x + pendulum.l * np.sin(th), CART_Y + pendulum.l * np.cos(th))
-    cartxy_visible = (x-CART_DISPLAY_WIDTH*.5, CART_Y)
-    cartxy_true = (x, CART_Y)
-    mass.set_center(massxy)
-    cart.set_xy(cartxy_visible)
-    line.set_xy((massxy, cartxy_true))
-    time_text.set_text("t="+str(df.index.values[i]))
-    return [mass, cart, time_text, line]
-
-animation = FuncAnimation(fig, animate, df.count, init_func=init, blit=True, interval= .01)
-plt.show()
-'''
-# Plot: x, theta, xdot, thetadot
-ax2 = fig.add_subplot(gs[0,2:])
-ax2.set_xlabel("t")
-ax2.plot(solution.t, solution.y[0], label="x")
-ax2.plot(solution.t, solution.y[1], label="theta")
-ax2.plot(solution.t, solution.y[2], label="x dot")
-ax2.plot(solution.t, solution.y[3], label="theta dot")
-ax2.legend()
-
-# Plot: forces, energy, momentum
-ax3 = fig.add_subplot(gs[1,2:])
-force_t = [f[0] for f in force_output]
-force_forces = [f[1] for f in force_output]
-ax3.scatter(force_t, force_forces, label='forces')
-energy_t = [e[0] for e in energy]
-energy_energies = [e[1] for e in energy]
-# ax3.plot(energy_t, energy_energies, label='energy')
-momentum_t = [m[0] for m in momentum]
-momentum_cart = [m[1] for m in momentum]
-momentum_pend = [m[2] for m in momentum]
-momentum_total = [(m[1] + m[2]) for m in momentum]
-# ax3.plot(momentum_t, momentum_cart, label='cart momentum')
-# ax3.plot(momentum_t, momentum_pend, label='pendulum momentum')
-# ax3.plot(momentum_t, momentum_total, label='total momentum')
-ax3.legend()
-
-animation = FuncAnimation(fig, animate, len(solution.y[0]), init_func=init, blit=True, interval=(1000/S_TPS))
-# animation.save('video.mp4', fps=30)
-plt.show()
-'''
+    plot = Visualizer(data, pendulum, save=False)
+    plot.display_viz()
+    a = plot.display_plots()
+    plt.show()

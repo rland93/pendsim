@@ -10,3 +10,7 @@ Python 3 inverse pendulum simulator! The inverted pendulum on a cart is a common
 ```pip install -r requirements.txt```
 
 3. Run pendulum.py
+
+To display plots, you may need to install tkinter:
+
+```sudo apt-get install python3-tk```
