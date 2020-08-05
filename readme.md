@@ -14,3 +14,7 @@ Python 3 inverse pendulum simulator! The inverted pendulum on a cart is a common
 To display plots, you may need to install tkinter:
 
 ```sudo apt-get install python3-tk```
+
+To save MP4 animations, you may need to install ffmpeg: https://ffmpeg.org/
+
+```sudo apt-get install ffmpeg```
