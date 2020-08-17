@@ -1,4 +1,3 @@
-/venv
-/notes
+venv
 *.mp4
 *.pyc
