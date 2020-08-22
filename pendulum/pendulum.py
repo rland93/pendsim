@@ -6,7 +6,9 @@ import matplotlib.text as text
 from matplotlib.gridspec import GridSpec
 from matplotlib.animation import FuncAnimation
 from math import sin, cos, pi
-from scipy.integrate import solve_ivp
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import WhiteKernel, ExpSineSquared, RBF, ConstantKernel as C
+
 import controller
 
 class Pendulum(object):
@@ -112,7 +114,7 @@ class Pendulum(object):
 
 
         # wrap angles to [pi, -pi]
-        t = np.arctan2(np.sin(t), np.cos(t))
+        # t = np.arctan2(np.sin(t), np.cos(t))
 
         return (x, xd, t, td)
 
@@ -208,6 +210,7 @@ class Simulation(object):
             'total momentum': [],
             'forces' : [],
             'control action' : []}
+        self.prior_states = []
     
     def simulate(self, controller):
         '''
@@ -244,12 +247,11 @@ class Simulation(object):
                 f_begin = force[1]
                 f_end = force[1] + force[2]
                 if f_begin < t < f_end:
-                    u_k+= force[0]
+                    u_k += force[0]
             self.data['forces'].append(u_k)
-            control_action = controller.policy(state, t)       
-            u_k += control_action     
+            control_action = controller.policy(state, t, self.dt)       
+            u_k += control_action
             self.data['control action'].append(control_action)
-
             # update state
             
             t += self.dt
@@ -452,63 +454,19 @@ class Visualizer(object):
 
 
 if __name__ == "__main__":
-    '''
-    # a sequence of open loop forces
-    forces = [
-        (50, 1, .5),
-        (-100, 6, .25),
-        (5, 9, 5),
-        (-25, 12, 1),
-        (-5, 26, 3),
-        (400, 35, .1),
-        (-300, 38, .12)
-    ]
-    # pendulum attributes
-    pend_init_state = np.array([0,0,0,0])
-    p = Pendulum(
-        8,
-        2,
-        5,
-        9.81, 
-        cfric=0.1, 
-        pfric=0.01, 
-        init_state=pend_init_state)
-
-    sim = Simulation(p, 0.001, 50, forces, 0)
-    data = sim.simulate(controller.NoController())
-    plot = Visualizer(
-        data, 
-        p, 
-        frameskip=25, 
-        cart_display_aspect=2,
-        save=False, 
-        viz_xcenter = -5,
-        viz_window_size=(16,9)
-    )
-    plot.display_viz()
-    plot.display_plots()
-    plt.show()
-    '''
-    # MPC
-    forces = [
-        (10,1,.5)
-    ]
-    pend_init_state = np.array([0,0,0,0])
-    p = Pendulum(
-        8,
-        2,
-        5,
-        9.81,
-        init_state = pend_init_state
-    )
-    sim = Simulation(p, 0.03, 12, forces, 0)
-    data = sim.simulate(controller.MPCController(p.init_state, p, 9))
+    forces = [(20,1,.5)]
+    pend_init_state = np.array([0,0,0.1,0])
+    pnd = Pendulum(8, 2, 5, 9.81, init_state = pend_init_state)
+    sim = Simulation(pnd, 0.01, 10, forces, 0)
+    controller = controller.MPCController(pend_init_state, pnd, 4)
+    # controller = controller.MPCWithGPR(20, pnd)
+    data = sim.simulate(controller)
     plot = Visualizer(
         data,
-        p,
+        pnd,
         frameskip = 1,
         viz_size=10,
-        viz_resize_auto=True,
+        viz_resize_auto=False,
         viz_window_size=(16,9)
     )
     plot.display_viz()
