@@ -5,63 +5,45 @@ import matplotlib.patches as patches
 import matplotlib.text as text
 from matplotlib.gridspec import GridSpec
 from matplotlib.animation import FuncAnimation
-from math import sin, cos, pi
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import WhiteKernel, ExpSineSquared, RBF, ConstantKernel as C
-
+import matplotlib.style
+matplotlib.style.use('seaborn-deep')
 import controller
+
+############## PENDULUM #############
 
 class Pendulum(object):
     '''
     An inverted pendulum object.
     '''
-    def __init__(self, M, m, l, g, cfric=0.1, pfric=0.01, init_state=(0,0,0,0)):
+    def __init__(self, M, m, l, g, x_0=np.array([0,0,0,0]), cfric=0.0075, pfric=0.0075):
         '''
-        Parameters
-        ----------
-
-        M: float
-            The cart mass
-        m: float
-            The pendulum mass
-        l: float
-            The pendulum length
-        g: float
-            Acceleration due to gravity
-        cfric: float
-            Viscous friction coeff, cart
-        pfric: float
-            Viscous friction coeff, pend
+        M: cart mass
+        m: ball mass
+        l: pend length
+        g: gravity
+        cfric: cart (viscous) friction
+        pfric: pend (viscout) friction
+        x_0: initial state
         '''
         self.M = M
         self.m = m
         self.l = l
         self.g = g
-        self.cfric = cfric * 0.5
-        self.pfric = pfric * 0.5
-        self.E = 0 #: current energy (kinetic plus potential)
-        self.xdd = 0 #: current xddot (linear acceleration cart)
-        self.tdd = 0 #: current thetaddot (angular acceleration pendulum)
-        self.init_state = init_state
-    
-    def calculate_accel(self, state, u):
-        '''
-        Update accelerations xddot, thetaddot from current state, given an input force.
+        self.cfric = cfric
+        self.pfric = pfric
+        self.x_0 = x_0
 
-        Parameters
-        ----------
-        u: float
-            Force on the cart pointing right, in newtons.
-        
-        Returns
-        -------
-        (float, float)
-            xdd and thetadd (the acceleration)
+    def calculate_xdot(self, x, u):
+        '''
+        Calculate xdot = f(x, u) where x is the state vector 
+        xdot is a vector [xdot, xddot, tdot, tddot] It's may
+        be a little bit confusing because xdot indicates either
+        the state vector or the cart absolute position/velo
+        depending on context.
         '''
         # state =   [x, xdot, theta, thetadot]
-        sin_t = np.sin(state[2])
-        cos_t = np.cos(state[2])
-
+        sin_t = np.sin(x[2])
+        cos_t = np.cos(x[2])
         # A^-1     2x2
         A = np.linalg.inv(
             np.array([
@@ -69,139 +51,72 @@ class Pendulum(object):
             [-cos_t,                self.l]
             ], dtype='float')
         )
-
         # B  2 @ 1
         B = np.array([
-            [-self.m*self.l*state[3]*state[3] * sin_t + u],
+            [-self.m*self.l*x[3]*x[3] * sin_t + u],
             [self.g * sin_t]
         ])
-
         solution = A @ B
-        xdd = solution[0][0]
-        tdd = solution[1][0]
-        return (xdd, tdd)
 
-    def pend_update(self, state, dt, u):
+        xd = x[1]
+        xdd = solution[0][0] - x[1] * self.cfric
+        td = x[3]
+        tdd = solution[1][0] - x[3] * self.pfric
+
+        return np.array([xd, xdd, td, tdd])
+
+    def update_rk4(self, x, u, dt):
         '''
-        Given the current state, timestep, and force applied, updates the pendulum state over that timestep.
-
-        Parameters
-        ----------
-        state: (float, float, float, float)
-            The current state
-        dt: float
-            The length of the update step (seconds, I guess?)
-        u: float
-            The force
-        
-        Returns
-        -------
-        (float, float, float, float)
-            The new state after time interval dt [x, xdot, theta, thetadot]
+        Update the pendulum state using the rk4 method
         '''
-        # update acceleration xddot_k, thddot_k = f(x_k, u_k)
-        (xdd, tdd) = self.calculate_accel(state, u)
-        # write accelerations
-        self.xdd = xdd
-        self.tdd = tdd
+        k1 = self.calculate_xdot(x, u) * dt
+        k2_state = x + k1 * 0.5 * dt
+        k2 = self.calculate_xdot(k2_state, u)
+        k3_state = x + k2 * 0.5 * dt
+        k3 = self.calculate_xdot(k3_state, u)
+        k4_state = x + k3 * dt
+        k4 = self.calculate_xdot(k4_state, u)
+        state = x + 1/6 * (k1 + 2*k2 + 2*k3 + k4) * dt
+        # wrap pi
+        state[2] = np.arctan2(np.sin(state[2]), np.cos(state[2]))
+        return state
 
-
-        # Euler method, x_k+1 = x_k + xdot_k * dt
-        x = state[0] + state[1] * dt
-        xd = state[1] + xdd * dt
-        t = state[2] + state[3] * dt
-        td = state[3] + tdd * dt
-
-
-        # wrap angles to [pi, -pi]
-        # t = np.arctan2(np.sin(t), np.cos(t))
-
-        return (x, xd, t, td)
-
-
-    def calculate_state_energy(self, state):
+    def get_energy(self, x):
         '''
-        Calculate the energy of the current state
-
-        Parameters
-        ----------
-        state: (float, float, float, float)
-            The current state
-
-        Returns
-        -------
-        (float float):
-            The kinetic and potential energy of the current state
+        Get a tuple containing the kinetic and potential energy of the system.
         '''
-        # cart vel. squared
-        v_c2 = state[1] * state[1] 
-        # pendulum velocity squared
-        v_p2 = v_c2 - 2 * self.l * state[1] * state[3] * np.cos(state[2]) + self.l * self.l * state[3] * state[3]
+        # cart vel^2
+        v_c2 = x[1] * x[1]
+        # pend vel^2
+        v_p2 = v_c2 - 2 * self.l * x[1] * x[3] * np.cos(x[2]) + self.l * self.l * x[3] * x[3]
+        ke = 0.5 * self.M * v_c2 + 0.5 * self.m * v_p2
+        pe = self.m * self.g * self.l * np.cos(x[2])
+        return ke, pe, ke + pe
 
-        KE = 0.5 * self.M * v_c2 + .5 * self.m * v_p2
-        PE = self.m * self.g * self.l * np.cos(state[2])
-
-        return (KE, PE)
-
-    def calculate_momentum(self, state):
+    def get_momentum(self, x):
         '''
-        Calculate the (x-direction) linear momentum of the current state.
-
-        Paramters
-        ---------
-        state: (float, float, float, float)
-            The current state
-
-        Returns
-        -------
-        (float, float):
-            The current momentums of the cart and the pendulum.
+        Calculate the (x-direction) linear momentum of the system.
         '''
-        p_cart = self.M * state[1] 
-        p_pend = self.m * (state[1] + state[3] * np.sin(state[2]))
-        return (p_cart, p_pend)
+        p_cart = self.M * x[1] 
+        p_pend = self.m * (x[1] + x[3] * np.sin(x[2]))
+        return p_cart, p_pend
 
 class Simulation(object):
     '''
-    The simulation object. Takes a pendulum, a timestep, a final time, and a list of 
-    external forces and returns the data of the simulation.
+    The simulation object. Provide a pendulum, a timestep, a final time, and a list of 
+    external forces.
     '''
-    def __init__(self, pendulum, dt, t_final, u, start_control):
-        '''
-        Parameters
-        ----------
-        pendulum: `Pendulum`
-            The pendulum to be simulated
-        dt: float
-            The time step of the simulation
-        t_final: float
-            Simulate up to this time
-        start_control : float
-            Start control at this time
-        u: list of (float, float, float)
-            List of force magnitude, start time, and end time pairs.
-        k: int
-            The kth simulation timestep, starting from 0.
-        times: [int]
-            List of simulation times of length k.
-        data: dict
-            Dictionary containing the simulation data. Keys are the attribute,
-            values are the data at each step of the simulation.
-        '''
-        self.pendulum = pendulum
-        self.dt = dt
-        self.t_final = t_final
-        self.start_control = start_control
-        self.u = u
-        self.k = 0
-        self.times = []
+    def __init__(self, pend, dt, t_final, u):
+        self.pend = pend # pendulum to be simulated
+        self.dt = dt # time step
+        self.t_final = t_final # end at or before this time
+        self.u = u # list of external forces applied
+        self.times = [] # list of discrete points in time simulated
         self.data={
             'x': [], 
             'xdot': [],
-            'xdd' : [],
             'theta':[],
             'thetadot':[],
-            'tdd': [],
             'PE':[], 
             'KE':[], 
             'E':[], 
@@ -209,110 +124,137 @@ class Simulation(object):
             'pendulum momentum': [], 
             'total momentum': [],
             'forces' : [],
-            'control action' : []}
-        self.prior_states = []
+            'control action' : []} # data returned by the sim
     
-    def simulate(self, controller):
+    def simulate(self, controller, actionskip):
         '''
-        Run the simulation.
+        Run the simulation with the given controller
+        '''
+        # initialize
+        t_k = 0
+        x_k = self.pend.x_0
+        # no of runs
+        n = 0
 
-        Returns
-        -------
-        pandas.DataFrame
-            Dataframe containing simulation data, indexed by time.
-        '''
-        t = 0
-        u_k = 0
-        state = self.pendulum.init_state
-        while t <= self.t_final:
-            # record the current state, energies, etc.
-            self.times.append(t)
-            self.data['x'].append(state[0])
-            self.data['xdot'].append(state[1])
-            self.data['xdd'].append(self.pendulum.xdd)
-            self.data['theta'].append(state[2])
-            self.data['thetadot'].append(state[3])
-            self.data['tdd'].append(self.pendulum.tdd)
-            self.data['KE'].append(self.pendulum.calculate_state_energy(state)[0])
-            self.data['PE'].append(self.pendulum.calculate_state_energy(state)[1])
-            self.data['E'].append(self.pendulum.calculate_state_energy(state)[0] + self.pendulum.calculate_state_energy(state)[1])
-            p_cart, p_pend = self.pendulum.calculate_momentum(state)
-            self.data['cart momentum'].append(p_cart) 
-            self.data['pendulum momentum'].append(p_pend)
-            self.data['total momentum'].append(p_cart + p_pend)
-            state = self.pendulum.pend_update(state, self.dt, u_k)
-            # add up all present forces
+        # controller plots
+        if controller.plotting:
+            figure = controller.init_plot()
+
+        # step time
+        while t_k <= self.t_final:
+            print('Time={}'.format(round(t_k,3)))
+            # external forces
             u_k = 0
-            for force in self.u:
-                f_begin = force[1]
-                f_end = force[1] + force[2]
-                if f_begin < t < f_end:
-                    u_k += force[0]
-            self.data['forces'].append(u_k)
-            control_action = controller.policy(state, t, self.dt)       
-            u_k += control_action
-            self.data['control action'].append(control_action)
-            # update state
-            
-            t += self.dt
+            for u in self.u:
+                f_begin = u[1]
+                f_end = u[1] + u[2] # end is start + duration
+                if f_begin < t_k < f_end:
+                    u_k += u[0]
 
-        return pd.DataFrame(index=self.times, data=self.data)
+            # only perform controller action every so often
+            action = controller.policy(x_k, t_k, self.dt)
+            if controller.plotting:
+                controller.update_plot(figure)
+            
+            # write data
+            self.write_data_timestep(x_k, t_k, u_k, action)
+
+            # add action to extern. force to get total force
+            u_k += action
+
+            # update state, time
+            x_k = self.pend.update_rk4(x_k, u_k, self.dt)
+            t_k += self.dt
+            n += 1
+        return pd.DataFrame(index = self.times, data = self.data)
+    
+    def write_data_timestep(self, x_k, t_k, u_k, action):
+        '''
+        write recorded data for a single timestep
+        '''
+        # times
+        self.times.append(t_k)
+        # states
+        self.data['x'].append(x_k[0])
+        self.data['xdot'].append(x_k[1])
+        self.data['theta'].append(x_k[2])
+        self.data['thetadot'].append(x_k[3])
+        # energies
+        ke, pe, e = self.pend.get_energy(x_k)
+        self.data['KE'].append(ke)
+        self.data['PE'].append(pe)
+        self.data['E'].append(e)
+        # momentums
+        p_cart, p_pend = self.pend.get_momentum(x_k)
+        self.data['cart momentum'].append(p_cart) 
+        self.data['pendulum momentum'].append(p_pend)
+        self.data['total momentum'].append(p_cart + p_pend)
+        # forces
+        self.data['forces'].append(u_k)
+        # controller action
+        self.data['control action'].append(action)
+
+
+################ VISUALIZATION ####################
 
 class Visualizer(object):
     '''
     Visualizer object is what we use to visualize the animated pendulum as well as display plots.
     '''
-    def __init__(self, data, pendulum, frameskip=10, save=False, filename='./video.mp4', disp_size_constant =.5, cart_display_aspect=2, viz_xcenter=0, viz_size=10, viz_resize_auto=False, viz_window_size=(16, 9)):
+
+    def __init__(self, data, pend, frameskip=10, save=False, filename='./video.mp4', cart_squish=2, window=(16,9)):
+        # Sim Info
         self.data = data
-        self.pendulum = pendulum
-        self.frameskip = frameskip
+        self.pend = pend
+        
+        # Movie Params
         self.save = save
+        self.filename = filename
+        
+        # Playback Params
+        self.skip = frameskip
+        self.window = window
 
-        self.disp_size_constant = disp_size_constant
-        if cart_display_aspect > 0.1:
-            self.cart_display_aspect = cart_display_aspect # aspect ratio: w/h
-        else:
-            raise ValueError("Aspect ratio must be > 0.1")
+        ### DISPLAY ###
+        self.disp_size = .5
+        # Cart Params
+        self.cart_squish = cart_squish
+        self.cart_w = np.sqrt(self.cart_squish * self.pend.M) * self.disp_size
+        self.cart_h = np.sqrt(1/(self.cart_squish) * self.pend.M) * self.disp_size
+        # Pendulum Params
+        self.p_rad = np.sqrt(self.pend.m) * self.disp_size/3
+        # Display Params
+        self.xmax = self.data['x'].max() * 1.1
+        self.xmin = self.data['x'].min() * 1.1
+        self.ymax = (self.pend.l + self.cart_h) * 1.3
+        self.ymin = -self.pend.l * 1.3
 
-        # Sizes (per unit length) of cart, pendulum are proportional to the density times the area
-        self.cart_display_width = np.sqrt(self.cart_display_aspect * self.pendulum.M) * self.disp_size_constant
-        self.cart_height = np.sqrt(1/(self.cart_display_aspect) * self.pendulum.M) * self.disp_size_constant
-        self.pend_radius = np.sqrt(self.pendulum.m) * self.disp_size_constant*.45
-
-        self.viz_xcenter = viz_xcenter
-
-        # resize visualization if specified
-        if viz_resize_auto:
-            # so somehow x axis is pointing at -j.
-            self.viz_xmin =  self.data['x'].max() - self.pendulum.l * 1.5
-            self.viz_xmax = - self.data['x'].min() + self.pendulum.l * 1.5
-        else:
-            self.viz_xmax = viz_size
-            self.viz_xmin = -viz_size
-
-        self.viz_window_size = viz_window_size
-
-    def display_viz(self):
+    def initialize_objects(self):
         '''
-        Display (show) the animated visualization. This function calls plt.show()
-
-        Returns
-        -------
-        None
+        The initial draw of each of the objects
         '''
-        # axis setup
-        viz = plt.figure(figsize=self.viz_window_size)
-        ax = plt.axes()
-        plt.axis('scaled')
-        ax.set_xlim(self.viz_xmin, self.viz_xmax)
-        ax.set_ylim(-self.pendulum.l - 1, self.pendulum.l + self.cart_height + 1)
-
-        # add elements
-        cart = patches.Rectangle((-self.cart_display_width * 0.5, self.cart_height), width=self.cart_display_width, height=-self.cart_height, ec='black', fc='seagreen')
-        mass = patches.Circle((0,0), radius=self.pend_radius, fc='skyblue', ec='black')
+        # The "zero point" of the cart is physically where the pendulum connects.
+        # So we adjust the animation position of the cart by moving it left by half
+        # cart width and up by cart height
+        cart = patches.Rectangle(
+            (-self.cart_w * 0.5, self.cart_h), 
+            width = self.cart_w, 
+            height = -self.cart_h, 
+            fc = 'seagreen',
+            ec = 'black')
+        # The pendulum mass
+        mass = patches.Circle(
+            (0,0), 
+            radius=self.p_rad, 
+            fc='skyblue', 
+            ec='black')
+        # The line connecting cart to pend mass
         line = patches.FancyArrow(0,0,1,1)
-        force = patches.FancyArrow(0,0,1,1, ec='red')
+        # Line for external force
+        ext_force = patches.FancyArrow(0,0,1,1, ec='red')
+        # Line for control force
         ctrl_force = patches.FancyArrow(0,0,1,1, ec='blue')
+
         ground = patches.Rectangle((-1000, -2000), 2000, 2000, fc='lightgrey')
         ground.set_zorder(-1)
 
@@ -320,90 +262,86 @@ class Visualizer(object):
         angle_text = text.Annotation('', (4,4), xycoords='axes points')
         x_text = text.Annotation('',(4,16), xycoords='axes points')
         time_text = text.Annotation('', (4,28), xycoords='axes points')
+        return cart, mass, line, ext_force, ctrl_force, ground, angle_text, x_text, time_text
+
+    def display_viz(self):
+        '''
+        Display (show) the animated visualization. This function calls plt.show()
+        '''
+        # axis setup
+        viz = plt.figure(figsize=self.window)
+        ax = plt.axes()
+        plt.axis('scaled')
+        ax.set_xlim(self.xmin - self.pend.l*2, self.xmax + self.pend.l*2)
+        ax.set_ylim(self.ymin, self.ymax)
+    
+        # matplotlib animate doesn't play nice with dataframes :(
+        anim_x = data['x'].values.tolist()[::self.skip]
+        anim_th = data['theta'].values.tolist()[::self.skip]
+        anim_f = data['forces'].values.tolist()[::self.skip]
+        anim_c = data['control action'].values.tolist()[::self.skip]
+        anim_t = data.index.values.tolist()[::self.skip]
+        n_frames = len(anim_t)
+        # Initialize objects
+        cart, mass, line, ext_force, ctrl_force, ground, angle_text, x_text, time_text = self.initialize_objects()
 
         def init():
             '''
-            Initialize elements in animation
+            Function required by matplotlib. Initializes the objects for use by the animator
             '''
             ax.add_patch(cart)
             ax.add_patch(mass)
             ax.add_patch(line)
-            ax.add_patch(force)
+            ax.add_patch(ext_force)
             ax.add_patch(ctrl_force)
             ax.add_patch(ground)
-
             ax.add_artist(angle_text)
             ax.add_artist(x_text)
             ax.add_artist(time_text)
-            return [ground, cart, mass, line, force, ctrl_force, angle_text, x_text, time_text]
-
-        # matplotlib animate doesn't play nice with dataframes :(
-        animate_x = data['x'].values.tolist()[::self.frameskip]
-        animate_theta = data['theta'].values.tolist()[::self.frameskip]
-        animate_force = data['forces'].values.tolist()[::self.frameskip]
-        animate_cforce = data['control action'].values.tolist()[::self.frameskip]
-        animate_times = data.index.values.tolist()[::self.frameskip]
-        frames = len(animate_times)
+            return [ground, cart, mass, line, ext_force, ctrl_force, angle_text, x_text, time_text]
 
         def animate(i):
-            # get animation frames
-            x = -animate_x[i] # position
-            th = animate_theta[i] # angle
-            u = animate_force[i] # disturbance force applied at i
-            c = animate_cforce[i] # controller force applied at i
-            
-            # animate disturbance force
-            if u > 0.0:
-                force_begin = (x + .5 * self.cart_display_width, .5 * self.cart_height)
-                force_end = (x + .5 * self.cart_display_width + np.sqrt(.1*u), .5 * self.cart_height)
-                force.set_xy((force_begin, force_end))
-                force.set_linewidth(np.sqrt(u))
-                force.set_visible(True)
-            elif u < 0.0:
-                force_begin = (x - .5 * self.cart_display_width, .5 * self.cart_height)
-                force_end = (x - .5 * self.cart_display_width - np.sqrt(.1*np.abs(u)), .5 * self.cart_height)
-                force.set_xy((force_begin, force_end))
-                force.set_linewidth(np.sqrt(np.abs(u)))
-                force.set_visible(True)
-            else: 
-                force.set_visible(False)
-
-            # animate control force
-            if c > 0.0:
-                ctrl_force_begin = (x + .5 * self.cart_display_width, 0.9 * self.cart_height)
-                ctrl_force_end = (x + .5 * self.cart_display_width + np.sqrt(.1 * np.abs(c)), 0.9 * self.cart_height)
-                ctrl_force.set_xy((ctrl_force_begin, ctrl_force_end))
-                ctrl_force.set_linewidth(np.sqrt(np.abs(c)))
-                ctrl_force.set_visible(True)
-            elif c < 0.0:
-                ctrl_force_begin = (x - .5 * self.cart_display_width, 0.9 * self.cart_height)
-                ctrl_force_end = (x - .5 * self.cart_display_width - np.sqrt(.1 * np.abs(c)), 0.9 * self.cart_height)
-                ctrl_force.set_xy((ctrl_force_begin, ctrl_force_end))
-                ctrl_force.set_linewidth(np.sqrt(np.abs(c)))
-                ctrl_force.set_visible(True)
-            else:
-                ctrl_force.set_visible(False)
-
-            # display cart/pend
-            # True cart x, y is centered at the point where the line connects. But matplotlib draws
-            # rectangles from the corner. So we have to add/subtract half the cart width and the full cart
-            # height in order to display the cart properly.
-            cartxy_true = (x, self.cart_height)
-            massxy = (x + self.pendulum.l * np.sin(th), self.cart_height + self.pendulum.l * np.cos(th))
-            line.set_xy((massxy, cartxy_true))
-            cartxy_visible = (x - self.cart_display_width*.5, self.cart_height)
-            mass.set_center(massxy)
+            '''
+            Function required by matplotlib. Runs in a loop during FuncAnimation
+            '''
+            # draw extern force
+            self.draw_force(ext_force, anim_f[i], anim_x[i], 0.6)
+            # draw control force
+            self.draw_force(ctrl_force, anim_c[i], anim_x[i], 0.3)
+            # draw cart
+            cartxy_true = (anim_x[i], self.cart_h)
+            cartxy_visible = (anim_x[i] - self.cart_w * .5, self.cart_h)
             cart.set_xy(cartxy_visible)
-
+            # draw pend mass
+            # theta is formed by this triangle:
+            # 
+            #░   -lsin(theta) |
+            #                 V
+            # pend <x,y>░█▀▀▀▀▀█▀█░
+            #           ░░█░░░░█▄█░
+            #           ░░░█░░░░░█░
+            #           ░░░░█░░░░█░
+            #           ░░░░░█░th█ <- lcos(theta)░
+            #           ░░░░░░█░░█░
+            #           ░░░░░░░█░█░
+            #           ░░░░░░░░██░
+            #           ░░░░░░░░░█░cart <x,y>
+            massxy = (anim_x[i] - self.pend.l * np.sin(anim_th[i]), self.cart_h + self.pend.l * np.cos(anim_th[i]))
+            mass.set_center(massxy)
+            # draw connecting line
+            line.set_xy((massxy, cartxy_true))
             # display text
-            angle_text.set_text(r"$\theta=$"+str(round(animate_theta[i],3)))
-            x_text.set_text(r"$x=$" + str(round(animate_x[i],3)))
-            time_text.set_text(r"t="+str(round(animate_times[i],3)))
-            return [ground, cart, mass, line, force, ctrl_force, angle_text, x_text, time_text]
-
+            angle_text.set_text(r"$\theta=$"+str(round(anim_th[i],3)))
+            x_text.set_text(r"$x=$" + str(round(anim_x[i],3)))
+            time_text.set_text(r"t="+str(round(anim_t[i],3)))
+            return [ground, cart, mass, line, ext_force, ctrl_force, angle_text, x_text, time_text]
+        
         def run_animation():
+            '''
+            Function to actually run the animation. Allows pausing on screen
+            '''
             anim_running = True
-            animation = FuncAnimation(viz, animate, frames, init_func=init, blit=True, interval=16)
+            animation = FuncAnimation(viz, animate, frames=n_frames, init_func=init, blit=True, interval=16)
             def onClick(event):
                 nonlocal anim_running
                 if anim_running:
@@ -415,59 +353,78 @@ class Visualizer(object):
             viz.canvas.mpl_connect('button_press_event', onClick)
             if self.save:
                 animation.save('./video.mp4', fps=30, bitrate=1000)
-
         run_animation()
         plt.show()
     
-    def display_plots(self):
-        '''
-        Return a figure containing the plots, which can then be saved or displayed.
+    def draw_force(self, obj, u, cart_x, ydist):
+        if u > 0.0:
+            beg = (cart_x - .5 * self.cart_w, ydist * self.cart_h)
+            end = (cart_x - .5 * self.cart_w - np.sqrt(.1 * np.abs(u)), ydist * self.cart_h)
+            obj.set_xy((beg, end))
+            obj.set_linewidth(np.sqrt(np.abs(u)))
+            obj.set_visible(True)
+        elif u < 0.0:
+            beg = (cart_x + .5 * self.cart_w, ydist * self.cart_h)
+            end = (cart_x + .5 * self.cart_w + np.sqrt(.1 * np.abs(u)), ydist * self.cart_h)
+            obj.set_xy((beg, end))
+            obj.set_linewidth(np.sqrt(np.abs(u)))
+            obj.set_visible(True)
+        else:
+            obj.set_xy(((0,0), (1,1)))
+            obj.set_linewidth(0)
+            obj.set_visible(False)
 
-        Returns
-        -------
-        `matplotlib.pyplot.figure`
-        '''
+    def display_plots(self):
         figure = plt.figure()
-        ax0 = figure.add_subplot(411)
-        ax1 = figure.add_subplot(412)
-        ax2 = figure.add_subplot(413)
-        ax3 = figure.add_subplot(414)
+        ax0 = figure.add_subplot(311)
+        ax1 = figure.add_subplot(312)
+        ax2 = figure.add_subplot(313)
+        # States/Positions
         ax0.plot(self.data['x'],label=r'$x$')
-        ax1.plot(self.data['xdot'],label=r'$\dot{x}$')
         ax0.plot(self.data['theta'],label=r'$\theta$')
+        ax0.plot(self.data['xdot'],label=r'$\dot{x}$')    
+        ax0.plot(self.data['thetadot'],label=r'$\dot{\theta}$')
+        ax0.set_ylabel("state")
         ax0.legend()
-        ax1.plot(self.data['thetadot'],label=r'$\dot{\theta}$')
-        ax1.plot(self.data['xdd'],label=r'xdd')
-        ax1.plot(self.data['tdd'],label=r'tdd')
+        # Energies
+        ax1.plot(self.data['PE'], label='PE')
+        ax1.plot(self.data['KE'], label='KE')
+        ax1.plot(self.data['E'], label='E')
+        ax1.set_ylabel("energy")
         ax1.legend()
-        # ax2.plot(self.data['cart momentum'], label='cart momentum')
-        # ax2.plot(self.data['pendulum momentum'], label='pendulum momentum')
-        # ax2.plot(self.data['total momentum'], label='total momentum')
-        ax2.plot(self.data['PE'], label='PE')
-        ax2.plot(self.data['KE'], label='KE')
-        ax2.plot(self.data['E'], label='E')
+        # Forces
+        ax2.plot(self.data['forces'], label='force')
+        ax2.plot(self.data['control action'], label='control action')
+        ax2.set_ylabel("force")
+        ax2.set_xlabel("time")
         ax2.legend()
-        ax3.plot(self.data['forces'], label='force')
-        ax3.plot(self.data['control action'], label='control action')
-        ax3.legend()
         return figure
 
-
 if __name__ == "__main__":
-    forces = [(20,1,.5)]
-    pend_init_state = np.array([0,0,0.1,0])
-    pnd = Pendulum(8, 2, 5, 9.81, init_state = pend_init_state)
-    sim = Simulation(pnd, 0.01, 10, forces, 0)
-    controller = controller.MPCController(pend_init_state, pnd, 4)
+    forces = []
+    init = np.array([0,0,0.05,0])
+    pnd = Pendulum(10, 2, 4, 9.81, x_0=init)
+    dt = 0.01
+    sim = Simulation(
+        pnd, 
+        dt, 
+        10, 
+        forces)
+    # ctrl = controller.NoController()
+    ctrl = controller.MPCController(
+        init, 
+        pnd, 
+        8, 
+        dt,
+        plotting=True)
     # controller = controller.MPCWithGPR(20, pnd)
-    data = sim.simulate(controller)
+    data = sim.simulate(
+        ctrl,
+        7)
     plot = Visualizer(
         data,
         pnd,
         frameskip = 1,
-        viz_size=10,
-        viz_resize_auto=False,
-        viz_window_size=(16,9)
     )
     plot.display_viz()
     plot.display_plots()

@@ -1,9 +1,9 @@
 import numpy as np
 import cvxpy as cp
+from scipy.signal import cont2discrete
 import matplotlib.pyplot as plt
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import WhiteKernel, ExpSineSquared, RBF, ConstantKernel as C
-import matplotlib.animation as animation
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 
 class Controller(object):
     '''
@@ -28,107 +28,120 @@ class Controller(object):
         '''
         raise NotImplementedError
 
+ 
+
 class MPCController(Controller):
-    def __init__(self, init_state, pendulum, T, u_max=15):
+    def __init__(self, init_state, pendulum, T, dt, u_max=100, plotting=False):
         self.pendulum = pendulum 
+        self.plotting = plotting
+        self.setpoint = 0
         
-        self.A = np.array([
-            [0, 1, 0, 0],
-            [0, 0, (pendulum.g * pendulum.m)/pendulum.M, 0],
-            [0, 0, 0, 1],
-            [0, 0, -(pendulum.m + pendulum.M) * pendulum.g / (pendulum.M * pendulum.l), 0]
-        ])
-        # The open-loop dynamic matrix A:
-        # (linearized at theta = 0)
-        ##### Linear Model Params #####
-        # d = damping
+        # System A 
+        # nxn
+        # 
+        # d=damping
+        # 
         # [ 0     1        0              0 ]
         # [ 0     -d/M     mg/M           0 ]
         # [ 0     0        0              1 ]
-        # [ 0     -d/M*l   -(m+M)g/(M l)  0 ]
+        # [ 0     -d/M*l   -(m+M)g/(M l)  0 ]  
 
-        self.B = np.array([[0], [1/self.pendulum.M], [0], [1/(self.pendulum.M*self.pendulum.l)]])
-        # The closed loop control matrix B:
-        # (linearized at theta = 0)
+        A = np.array([
+            [0, 1, 0, 0],
+            [0, 0, (pendulum.g * pendulum.m)/pendulum.M, 0],
+            [0, 0, 0, 1],
+            [0, 0, pendulum.g/pendulum.l + pendulum.g * pendulum.m/(pendulum.l*pendulum.M), 0]
+        ])
 
+        # Input B
+        # n x p
+        # 
         # B = [ 0     ]
         #     [ 1/M   ]
         #     [ 0     ]
         #     [ 1/M*l ]
 
-        self.T = T
-        self.u_max = 10000
+        B = np.array([
+            [0], 
+            [1/pendulum.M], 
+            [0], 
+            [1/(pendulum.M * pendulum.l)]
+        ])
 
+        # Output C
+        # q x n
+        # 
+        # (blank for now)
+        C = np.zeros((1, A.shape[0]))
+
+        # Feedthrough D
+        # q x p
+        # 
+        # (blank for now)
+        D = np.zeros((1, 1))
+
+        sys_disc = cont2discrete((A,B,C,D), dt, method='zoh')
+        self.A = sys_disc[0]
+        self.B = sys_disc[1]
+        
+        self.T = T
+        self.u_max = u_max
+
+        self.planned_u = []
+        self.planned_state = []
 
     def policy(self, state, t, dt):
         x = cp.Variable((4, self.T+1))
         u = cp.Variable((1, self.T))
         cost = 0
-        constr = []
+        constr = [x[:, 0] == state]
         for t in range(self.T):
-            constr += [x[:, t+1] == x[:,t] + dt * self.A @ x[:, t] + dt * self.B @ u[:, t],
-            cp.norm_inf(u[:, t]) <= self.u_max]
-        constr += [
-            x[:, 0] == state,
-            ]
-        cost += cp.sum_squares(x[2, :])
-        problem = cp.Problem(cp.Minimize(cost), constr)
-        problem.solve(verbose=False)
-        print('optimal u={}'.format(u[0,0].value))
+            constr.append(x[:, t + 1] == self.A @ x[:, t] + self.B @ u[:, t])
+            constr.append(cp.abs(u[0, t]) <= self.u_max)
+        
+        cost += cp.sum_squares(cp.abs(x[2, :])) + cp.sum_squares(cp.abs(x[3,:]))
+
+        problem = cp.Problem(cp.Minimize(cost), constraints=constr)
+        problem.solve(verbose=False, solver='SCS')
         action = u[0,0].value
-        # plt.plot(x[0,:].value)
-        # plt.plot(x[2,:].value)
-        # plt.plot(u.value)
-        # plt.show()
-        return action
+
+        # dump estimate info
+        self.planned_state = x[:,:].value
+        self.planned_u = u[0,:].value
+
+        print('u: {}, theta: {}'.format(round(u[0,0].value,4),round(x[2,0].value,4)))
+        return action       
+
+    def init_plot(self):
+        prediction = plt.figure()
+        return prediction
+
+    def update_plot(self, figure):
+        plt.clf()
+        ax0 = figure.add_subplot(211)
+        ax1 = figure.add_subplot(212)
+        # States
+        ax0.plot(self.planned_state[0], label=r'$x$')
+        ax0.plot(self.planned_state[1], label=r'$\dot{x}$') 
+        ax0.plot(self.planned_state[2], label=r'$\theta$')
+        ax0.plot(self.planned_state[3], label=r'$\dot{\theta}$')   
+        ax0.axhline(y = self.setpoint, color='k', drawstyle='steps', linestyle='dotted', label=r'set point')
+        ax0.set_ylabel("state")
+        ax0.legend()
+        # Control Actions
+        ax1.plot(self.planned_u, label=r'$u$')
+        ax1.set_ylabel("force")
+        ax1.legend()
+        plt.draw()
+        plt.pause(0.001)
+
 
 class NoController(Controller):
     def __init__(self):
         pass
     
-    def policy(self, state, t):
+    def policy(self, state, t, dt):
         return 0
-'''
-I want to animate the controller, but it's a pain, so shelved.
-
-class Viewer(object):
-    def __init__(self):
-        self.fig, self.lines = self.initialize()
-    
-    def initialize(self):
-        plt.ion()
-        fig = plt.figure()
-        eps_true = plt.plot([],[], 'r.', markersize=10, label=r'$\epsilon$ (true)')
-        eps_est = plt.plot([],[], 'b-', label=r'$\epsilon$ (predicted)')
-        eps_range_upper = plt.plot([],[],fc='royalblue', linestyle=':', label='95% CI (upper)')
-        eps_range_lower = plt.plot([],[],fc='royalblue', linestyle=':', label='95% CI (lower)')
-        plt.xlabel(r'$t$')
-        plt.ylabel(r'$\epsilon$')
-        lines = [eps_est, eps_range_upper, eps_range_lower, eps_true]
-        return fig, lines
-
-    def update(self):
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
-    
-    def render(self, eps_est_t, eps_est, eps_est_upper, eps_est_lower, eps_true_t, eps_true):
-        self.lines[0].set_xdata(eps_est_t)
-        self.lines[0].set_ydata(eps_est)
-
-        self.lines[1].set_xdata(eps_est_t)
-        self.lines[1].set_ydata(eps_est_upper)
-
-        self.lines[2].set_xdata(eps_est_t)
-        self.lines[2].set_ydata(eps_est_lower)
-
-        self.lines[3].set_xdata(eps_true_t)
-        self.lines[3].set_ydata(eps_true)
-
-        adjust
-
-        self.update()
-'''
-
 
 class MPCWithGPR(Controller):
     def __init__(self, window_size, pendulum):
@@ -197,9 +210,7 @@ class MPCWithGPR(Controller):
 
             gp = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=10, normalize_y=False)
             gp.fit(ts.transpose(), e_td)
-            
             t_pred = np.atleast_2d(np.linspace(self.t_priors[0], self.t_priors[-1], 100)).transpose()
-
             pred, sigma = gp.predict(t_pred, return_std=True)
 
             # set plot elements
@@ -239,62 +250,17 @@ class MPCOneShot(Controller):
         self.ts.append(t)
         return 0
 
-class PDController(Controller):
-    def __init__(self, init_state, setpoint, pgain, dgain, igain, control_max):
-        '''
-        Paramters
-        ---------
-        init_state: 
-            the initial state
-        setpoint:
-            desired theta val.
-        pgain:
-            proportional gain
-        dgain:
-            derivative gain
-        igain:
-            integral gain
-        control_max:
-            maximum controller action
-        '''
-        self.init_state = init_state
+class PController(Controller):
+    def __init__(self, x_0, setpoint, pgain, u_max):
+        self.x_0 = x_0
         self.setpoint = setpoint
         self.pgain = pgain
-        self.dgain = dgain
-        self.igain = igain
-        self.control_max = control_max
-        self.prior_state = 0 
-        self.prior_t = 0
-        self.prior_th = 0
-        self.integral = 0
-    def sign(self, x):
-        if x > 0:
-            return 1
-        else:
-            return -1
-
-    def policy(self, state, t):
-        '''
-        Parameters
-        ----------
-        state: (float, float, float, float)
-            Current system state
-        t: float
-            Current system time
-        '''
-        error = state[2] - self.setpoint
-
-        dt = t - self.prior_t
-        if dt > 0:
-            deriv = (state[2] - self.prior_th)/(t - self.prior_t)
-        else: 
-            deriv = 0
-
-        action = error * self.pgain + deriv * self.dgain
-
-        self.prior_t = t
-        self.prior_th = state[2] 
+        self.u_max = u_max
+    def policy(self, x, t, dt):
+        action = 0
         return action
+        
+
 
 class BangBang(Controller):
     def __init__(self, setpoint, magnitude):
