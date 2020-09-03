@@ -31,20 +31,13 @@ class Controller(object):
  
 
 class MPCController(Controller):
-    def __init__(self, init_state, pendulum, T, dt, u_max=100, plotting=False):
+    def __init__(self, init_state, pendulum, T, dt, u_max=1000, plotting=False):
         self.pendulum = pendulum 
         self.plotting = plotting
         self.setpoint = 0
         
         # System A 
         # nxn
-        # 
-        # d=damping
-        # 
-        # [ 0     1        0              0 ]
-        # [ 0     -d/M     mg/M           0 ]
-        # [ 0     0        0              1 ]
-        # [ 0     -d/M*l   -(m+M)g/(M l)  0 ]  
 
         A = np.array([
             [0, 1, 0, 0],
@@ -55,11 +48,6 @@ class MPCController(Controller):
 
         # Input B
         # n x p
-        # 
-        # B = [ 0     ]
-        #     [ 1/M   ]
-        #     [ 0     ]
-        #     [ 1/M*l ]
 
         B = np.array([
             [0], 
@@ -72,12 +60,14 @@ class MPCController(Controller):
         # q x n
         # 
         # (blank for now)
+
         C = np.zeros((1, A.shape[0]))
 
         # Feedthrough D
         # q x p
         # 
         # (blank for now)
+        
         D = np.zeros((1, 1))
 
         sys_disc = cont2discrete((A,B,C,D), dt, method='zoh')
@@ -94,22 +84,24 @@ class MPCController(Controller):
         x = cp.Variable((4, self.T+1))
         u = cp.Variable((1, self.T))
         cost = 0
-        constr = [x[:, 0] == state]
+        constr = []
         for t in range(self.T):
             constr.append(x[:, t + 1] == self.A @ x[:, t] + self.B @ u[:, t])
-            constr.append(cp.abs(u[0, t]) <= self.u_max)
-        
-        cost += cp.sum_squares(cp.abs(x[2, :])) + cp.sum_squares(cp.abs(x[3,:]))
-
+            constr.append(cp.abs(u[:, t]) <= self.u_max)
+        cost += cp.sum_squares(x[2,self.T])
+        cost += cp.sum_squares(u[0,self.T-1])
+        # cost += 1e4*cp.square(x[1,0])
+        constr += [x[:, 0] == state]
         problem = cp.Problem(cp.Minimize(cost), constraints=constr)
-        problem.solve(verbose=False, solver='SCS')
+        problem.solve(verbose=True, solver='ECOS')
         action = u[0,0].value
 
         # dump estimate info
         self.planned_state = x[:,:].value
         self.planned_u = u[0,:].value
 
-        print('u: {}, theta: {}'.format(round(u[0,0].value,4),round(x[2,0].value,4)))
+        print('cost: {}, u: {}, theta: {}'.format(cost.value,round(u[0,0].value,4),round(x[2,0].value,4)))
+        # print('x: {}'.format(x[:,:].value))
         return action       
 
     def init_plot(self):
@@ -133,7 +125,7 @@ class MPCController(Controller):
         ax1.set_ylabel("force")
         ax1.legend()
         plt.draw()
-        plt.pause(0.001)
+        plt.pause(0.0001)
 
 
 class NoController(Controller):
@@ -144,99 +136,77 @@ class NoController(Controller):
         return 0
 
 class MPCWithGPR(Controller):
-    def __init__(self, window_size, pendulum):
-        self.tick = 0
-        self.window_size = window_size # number of readings to look backwards
-        self.t_priors = [] # time priors
-        self.x_priors = [] # state priors
-        self.u_priors = [] # control priors
-        self.m_eval = [] # linear model evaluated at priors
-        self.e_priors = np.zeros((4, window_size)) # epsilon priors
-        self.fig = plt.figure()
-
-        ##### Linear Model Params #####
-        # d = damping
-        # [ 0     1        0              0 ]
-        # [ 0     -d/M     mg/M           0 ]
-        # [ 0     0        0              1 ]
-        # [ 0     -d/M*l   -(m+M)g/(M l)  0 ]
-        self.model_A = np.array([
+    def __init__(self, window, pend, dt, plotting=False):
+        self.window = window
+        self.pend = pend
+        self.plotting = plotting
+        A = np.array([
             [0, 1, 0, 0],
-            [0, 0, (pendulum.g * pendulum.m)/pendulum.M, 0],
+            [0, 0, (pend.g * pend.m)/pend.M, 0],
             [0, 0, 0, 1],
-            [0, 0, -(pendulum.m + pendulum.M)/(pendulum.M * pendulum.l), 0]
-        ])
+            [0, 0, pend.g/pend.l + pend.g * pend.m/(pend.l*pend.M), 0]])
+        B = np.array([
+            [0], 
+            [1/pend.M], 
+            [0], 
+            [1/(pend.M * pend.l)]])
+        C = np.zeros((1, A.shape[0]))
+        D = np.zeros((1, 1))
+        sys_disc = cont2discrete((A,B,C,D), dt, method='zoh')
+        self.A = sys_disc[0]
+        self.B = sys_disc[1]
 
-        self.model_B = np.array([[0], [1/pendulum.M], [0], [1/(pendulum.M * pendulum.l)]])
-        
+        self.t_priors = []
+        self.x_priors = []
+        self.u_priors = []
+        self.tick = 0
 
     def policy(self, state, t, dt):
-        # begin after window has passed so we have data
-        # to look back on
-        if self.tick > self.window_size:
-            print("tick: {}".format(self.tick))
-            # Keep the window at a manageable size
+        if self.tick > self.window:
+
             self.t_priors.pop(0)
             self.x_priors.pop(0)
             self.u_priors.pop(0)
-            e = np.zeros((4, self.window_size))
 
-            # evaluate difference between linear model and 
-            # real values for  each state in the window
+            epsilons = np.zeros((len(state), self.window))
             for i, (x, u) in enumerate(zip(self.x_priors, self.u_priors)):
                 x = np.array(x, ndmin=2).transpose()
-                if i == 0:
-                    pass
-                else:
-                    # x_k+1 = Ax+Bu
-                    # therefore when we evaluate epsilon priors, we take from
-                    # the second item in the list of priors... not the first
-                    # because we cannot find e = g(x_k,u_k) without knowing
-                    # x_k-1, u_k-1
-                    xk_true = self.x_priors[i]
-                    dx = self.model_A @ self.x_priors[i - 1]
-                    xk_model = self.x_priors[i - 1]  + dt * dx
-                    # NOTE: There is never an error in either x or in theta,
-                    # because the way we calculate x_k+1 is just x_k + xdot * dt;
-                    # it's the same in our linear model as it is in the actual
-                    # simulation. Since we measure xdot directly, we're never
-                    # wrong! 
-                    e[:, i] = np.array((xk_true - xk_model))
+                if i != 0:
+                    xk_true = self.x_priors[1]
+                    dx = self.A @ self.x_priors[i-1]
+                    xk = self.x_priors[i-1] + dt * dx
+                    eps = xk_true - xk
+                    epsilons[:,i] = np.array(eps)
+            
+            self.x_train = np.array(self.x_priors[:-1])
+            self.e_train = epsilons[:,1:].transpose()
+            print("x_train={}, e_train={}".format(np.shape(self.x_train),np.shape(self.e_train)))
+            
+            kernel = C(1) * RBF(length_scale=dt*15)
+            gp = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=0, normalize_y=False)
+            gp.fit(self.x_train, self.e_train)
 
-            e_td = e[1 ,1:]
-            ts = np.array(self.t_priors[1:], ndmin=2)
-            print("shape(e) = {}, shape(t) = {}".format(np.shape(e_td), np.shape(ts)))
-            kernel = C(1) * RBF(length_scale=(dt * self.window_size/2))
+            lin_future = np.array(self.A @ state, ndmin=2)
+            eps_future = gp.predict(lin_future, return_std=True)
 
-            gp = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=10, normalize_y=False)
-            gp.fit(ts.transpose(), e_td)
-            t_pred = np.atleast_2d(np.linspace(self.t_priors[0], self.t_priors[-1], 100)).transpose()
-            pred, sigma = gp.predict(t_pred, return_std=True)
+            print("prediction={}".format(lin_future))
+            print("eps_future={}".format(eps_future))
 
-            # set plot elements
-            plt.close()
-            plt.title("$\dot{x}$")
-            plt.plot(ts.transpose(), e_td, 'r.', markersize=10, label=r'$\epsilon$')
-            plt.plot(t_pred, pred, 'b-', label=r'$\epsilon$ (predicted)')
-            plt.fill(np.concatenate([t_pred, t_pred[::-1]]),
-                    np.concatenate([pred - 1.9600 * sigma,
-                                    (pred + 1.9600 * sigma)[::-1]]),
-                    alpha=.3, fc='royalblue', ec='None', label='95% confidence interval')
-            plt.xlabel(r'$t$')
-            plt.ylabel(r'$\epsilon$')
-            plt.ylim(min(pred - 1.96 * sigma) - .01, max(pred + 1.96 * sigma) + 0.01)
-            plt.legend()
-            plt.savefig('./plot_anim/' + str(self.tick) + '.png')
-
-            action = 0
-        else:
-            action = 0
-        
+        action = 0
         self.t_priors.append(t)
-        self.x_priors.append(list(state))
+        self.x_priors.append(state)
         self.u_priors.append(action)
         self.tick += 1
         return action
+    def init_plot(self):
+        fig = plt.figure()
+        return fig
+    def update_plot(self, fig):
+        plt.clf()
+
+        ax0 = fig.add_subplot(111)
+        ax0.plot
+
         
 class MPCOneShot(Controller):
     def __init__(self):

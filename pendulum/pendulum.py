@@ -126,7 +126,7 @@ class Simulation(object):
             'forces' : [],
             'control action' : []} # data returned by the sim
     
-    def simulate(self, controller, actionskip):
+    def simulate(self, controller):
         '''
         Run the simulation with the given controller
         '''
@@ -142,16 +142,16 @@ class Simulation(object):
 
         # step time
         while t_k <= self.t_final:
-            print('Time={}'.format(round(t_k,3)))
+            print('Time={}, x_k={}'.format(round(t_k,3), x_k))
             # external forces
             u_k = 0
+            # (magnitude, start, duration)
             for u in self.u:
                 f_begin = u[1]
                 f_end = u[1] + u[2] # end is start + duration
                 if f_begin < t_k < f_end:
                     u_k += u[0]
 
-            # only perform controller action every so often
             action = controller.policy(x_k, t_k, self.dt)
             if controller.plotting:
                 controller.update_plot(figure)
@@ -401,26 +401,31 @@ class Visualizer(object):
         return figure
 
 if __name__ == "__main__":
-    forces = []
-    init = np.array([0,0,0.05,0])
+    forces = [(50,1,0.25)]
+    init = np.array([0,0,np.pi/4,0])
     pnd = Pendulum(10, 2, 4, 9.81, x_0=init)
     dt = 0.01
     sim = Simulation(
         pnd, 
         dt, 
-        10, 
+        6, 
         forces)
-    # ctrl = controller.NoController()
+
     ctrl = controller.MPCController(
         init, 
         pnd, 
-        8, 
+        10, 
         dt,
+        u_max=100,
         plotting=True)
-    # controller = controller.MPCWithGPR(20, pnd)
+    ctrl2 = controller.MPCWithGPR(
+        20,
+        pnd,
+        dt,
+        plotting=False
+    )
     data = sim.simulate(
-        ctrl,
-        7)
+        ctrl)
     plot = Visualizer(
         data,
         pnd,
