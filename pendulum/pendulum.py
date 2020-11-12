@@ -78,7 +78,7 @@ class Pendulum(object):
         k4 = self.calculate_xdot(k4_state, u)
         state = x + 1/6 * (k1 + 2*k2 + 2*k3 + k4) * dt
         # wrap pi
-        state[2] = np.arctan2(np.sin(state[2]), np.cos(state[2]))
+        # state[2] = np.arctan2(np.sin(state[2]), np.cos(state[2]))
         return state
 
     def get_energy(self, x):
@@ -106,12 +106,13 @@ class Simulation(object):
     The simulation object. Provide a pendulum, a timestep, a final time, and a list of 
     external forces.
     '''
-    def __init__(self, pend, dt, t_final, u):
+    def __init__(self, pend, dt, t_final, u, control_every):
         self.pend = pend # pendulum to be simulated
         self.dt = dt # time step
         self.t_final = t_final # end at or before this time
         self.u = u # list of external forces applied
         self.times = [] # list of discrete points in time simulated
+        self.control_every = control_every # control action interval, 1 = control every dt, 2 = control every other dt, etc.
         self.data={
             'x': [], 
             'xdot': [],
@@ -124,7 +125,23 @@ class Simulation(object):
             'pendulum momentum': [], 
             'total momentum': [],
             'forces' : [],
-            'control action' : []} # data returned by the sim
+            'control action' : [],
+            'nl_pred_x' : [],
+            'nl_pred_xd' : [],
+            'nl_pred_t' : [],
+            'nl_pred_td' : [],
+            'nl_error_x' : [],
+            'nl_error_xd' : [],
+            'nl_error_t' : [],
+            'nl_error_td' : [],
+            'l_pred_x' : [],
+            'l_pred_xd' : [],
+            'l_pred_t' : [],
+            'l_pred_td' : [],
+            'l_error_x' : [],
+            'l_error_xd' : [],
+            'l_error_t' : [],
+            'l_error_td' : [],} # data returned by the sim
     
     def simulate(self, controller):
         '''
@@ -142,7 +159,7 @@ class Simulation(object):
 
         # step time
         while t_k <= self.t_final:
-            print('Time={}, x_k={}'.format(round(t_k,3), x_k))
+            print('time={}, x_k={}'.format(round(t_k,3), x_k))
             # external forces
             u_k = 0
             # (magnitude, start, duration)
@@ -152,12 +169,19 @@ class Simulation(object):
                 if f_begin < t_k < f_end:
                     u_k += u[0]
 
-            action = controller.policy(x_k, t_k, self.dt)
-            if controller.plotting:
-                controller.update_plot(figure)
+            # controller takes action every `control_every` steps
+            if n % self.control_every == 0:
+
+                noise_on_state = x_k + np.random.random_sample(np.shape(x_k))* 0.1
+
+                action = controller.policy(x_k, t_k, self.dt)
+                if controller.plotting:
+                    controller.update_plot(figure)
+            else:
+                action = 0
             
             # write data
-            self.write_data_timestep(x_k, t_k, u_k, action)
+            self.write_data_timestep(x_k, t_k, u_k, action, controller.l_pred_x_k, controller.l_err_x_k, controller.nl_pred_x_k, controller.nl_err_x_k)
 
             # add action to extern. force to get total force
             u_k += action
@@ -168,7 +192,7 @@ class Simulation(object):
             n += 1
         return pd.DataFrame(index = self.times, data = self.data)
     
-    def write_data_timestep(self, x_k, t_k, u_k, action):
+    def write_data_timestep(self, x_k, t_k, u_k, action, l_pred_x_k, l_err_x_k, nl_pred_x_k, nl_err_x_k):
         '''
         write recorded data for a single timestep
         '''
@@ -194,6 +218,32 @@ class Simulation(object):
         # controller action
         self.data['control action'].append(action)
 
+        # non-linear predictions & errors
+        self.data['nl_pred_x'].append(nl_pred_x_k[0])
+        self.data['nl_pred_xd'].append(nl_pred_x_k[1])
+        self.data['nl_pred_t'].append(nl_pred_x_k[2])
+        self.data['nl_pred_td'].append(nl_pred_x_k[3])
+        self.data['nl_error_x'].append(nl_err_x_k[0])
+        self.data['nl_error_xd'].append(nl_err_x_k[1])
+        self.data['nl_error_t'].append(nl_err_x_k[2])
+        self.data['nl_error_td'].append(nl_err_x_k[3])
+
+        # linear predictions & errors
+        self.data['l_pred_x'].append(l_pred_x_k[0])
+        self.data['l_pred_xd'].append(l_pred_x_k[1])
+        self.data['l_pred_t'].append(l_pred_x_k[2])
+        self.data['l_pred_td'].append(l_pred_x_k[3])
+        self.data['l_error_x'].append(l_err_x_k[0])
+        self.data['l_error_xd'].append(l_err_x_k[1])
+        self.data['l_error_t'].append(l_err_x_k[2])
+        self.data['l_error_td'].append(l_err_x_k[3])
+
+
+    def wrap2pi(self, theta):
+        '''
+        wrap theta to the interval [0, 2pi]
+        '''
+        return np.arctan2(np.sin(theta), np.cos(theta))
 
 ################ VISUALIZATION ####################
 
@@ -375,10 +425,10 @@ class Visualizer(object):
             obj.set_visible(False)
 
     def display_plots(self):
-        figure = plt.figure()
-        ax0 = figure.add_subplot(311)
-        ax1 = figure.add_subplot(312)
-        ax2 = figure.add_subplot(313)
+        figure1 = plt.figure(1)
+        ax0 = figure1.add_subplot(311)
+        ax1 = figure1.add_subplot(312)
+        ax2 = figure1.add_subplot(313)
         # States/Positions
         ax0.plot(self.data['x'],label=r'$x$')
         ax0.plot(self.data['theta'],label=r'$\theta$')
@@ -398,39 +448,85 @@ class Visualizer(object):
         ax2.set_ylabel("force")
         ax2.set_xlabel("time")
         ax2.legend()
-        return figure
+
+        # Errors
+        figure2 = plt.figure(2)
+        figure2, axs = plt.subplots(4, 2)
+
+        labels = [r'$x$', r'$\dot{x}$', r'$\theta$', r'$\dot{\theta}$']
+
+        # x
+        axs[0,0].plot(self.data['x'], 'k-', label=('true: ' + labels[0]))
+        axs[0,0].plot(self.data['l_pred_x'], 'g--', label=('l pred: ' + labels[0]))
+        axs[0,0].plot(self.data['nl_pred_x'], 'b:', label=('nl pred: ' + labels[0]))
+        axs[0,0].legend()
+        axs[0,0].set_title('Predicted Values: ' + labels[0])
+        axs[1,0].plot(self.data['l_error_x'], 'g--', label=('l err: ' + labels[0]))
+        axs[1,0].plot(self.data['nl_error_x'], 'b:', label=('nl err: ' + labels[0]))
+        axs[1,0].legend()
+        axs[1,0].set_title('Error Values: ' + labels[0])
+        # xd
+        axs[0,1].plot(self.data['xdot'], 'k-', label=('true: ' + labels[1]))
+        axs[0,1].plot(self.data['l_pred_xd'], 'g--', label=('l pred: ' + labels[1]))
+        axs[0,1].plot(self.data['nl_pred_xd'], 'b:', label=('nl pred: ' + labels[1]))
+        axs[0,1].legend()
+        axs[0,1].set_title('Predicted Values: ' + labels[1])
+        axs[1,1].plot(self.data['l_error_xd'], 'g--', label=('l err: ' + labels[1]))
+        axs[1,1].plot(self.data['nl_error_xd'], 'b:', label=('nl err: ' + labels[1]))
+        axs[1,1].legend()
+        axs[1,1].set_title('Error Values: ' + labels[1])
+        # td
+        axs[2,0].plot(self.data['theta'], 'k-', label=('true: ' + labels[2]))
+        axs[2,0].plot(self.data['l_pred_t'], 'g--', label=('l pred: ' + labels[2]))
+        axs[2,0].plot(self.data['nl_pred_t'], 'b:', label=('nl pred: ' + labels[2]))
+        axs[2,0].legend()
+        axs[2,0].set_title('Predicted Values: ' + labels[2])
+        axs[3,0].plot(self.data['l_error_t'], 'g--', label=('l err: ' + labels[2]))
+        axs[3,0].plot(self.data['nl_error_t'], 'b:', label=('nl err: ' + labels[2]))
+        axs[3,0].legend()
+        axs[3,0].set_title('Error Values: ' + labels[2])
+
+        # td
+        axs[2,1].plot(self.data['thetadot'], 'k-', label=('true: ' + labels[3]))
+        axs[2,1].plot(self.data['l_pred_td'], 'g--', label=('l pred: ' + labels[3]))
+        axs[2,1].plot(self.data['nl_pred_td'], 'b:', label=('nl pred: ' + labels[3]))
+        axs[2,1].legend()
+        axs[2,1].set_title('Predicted Values: ' + labels[3])
+        axs[3,1].plot(self.data['l_error_td'], 'g--', label=('l err: ' + labels[3]))
+        axs[3,1].plot(self.data['nl_error_td'], 'b:', label=('nl err: ' + labels[3]))
+        axs[3,1].legend()
+        axs[3,1].set_title('Error Values: ' + labels[3])
+
+        plt.show()
 
 if __name__ == "__main__":
-    forces = [(50,1,0.25)]
-    init = np.array([0,0,np.pi/4,0])
+    # forces: (magnitude, start time, duration)
+    forces = [(0.05,0,30)]
+    init = np.array([0,0,np.pi/8,0])
     pnd = Pendulum(10, 2, 4, 9.81, x_0=init)
-    dt = 0.01
+    dt = 0.005
+    every = 10
     sim = Simulation(
         pnd, 
         dt, 
-        6, 
-        forces)
-
-    ctrl = controller.MPCController(
-        init, 
-        pnd, 
-        10, 
-        dt,
-        u_max=100,
-        plotting=True)
+        20, 
+        forces,
+        every)
     ctrl2 = controller.MPCWithGPR(
-        20,
+        75,
         pnd,
         dt,
-        plotting=False
-    )
+        every,
+        plotting=False)
+
     data = sim.simulate(
-        ctrl)
+        ctrl2)
+
     plot = Visualizer(
         data,
         pnd,
         frameskip = 1,
     )
+
     plot.display_viz()
     plot.display_plots()
-    plt.show()
