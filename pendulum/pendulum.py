@@ -450,7 +450,6 @@ class Visualizer(object):
         ax2.legend()
 
         # Errors
-        figure2 = plt.figure(2)
         figure2, axs = plt.subplots(4, 2)
 
         labels = [r'$x$', r'$\dot{x}$', r'$\theta$', r'$\dot{\theta}$']
@@ -509,11 +508,11 @@ if __name__ == "__main__":
     sim = Simulation(
         pnd, 
         dt, 
-        20, 
+        8, 
         forces,
         every)
     ctrl2 = controller.MPCWithGPR(
-        75,
+        25,
         pnd,
         dt,
         every,

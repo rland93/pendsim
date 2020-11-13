@@ -1,9 +1,11 @@
 import numpy as np
+from scipy import spatial
 import cvxpy as cp
 from scipy.signal import cont2discrete
 import matplotlib.pyplot as plt
 from sklearn.gaussian_process import GaussianProcessRegressor
 import sklearn.gaussian_process
+import time
 
 class Controller(object):
     '''
@@ -156,6 +158,11 @@ class MPCWithGPR(Controller):
     
         self.have_pred = False
 
+        self.z_points = np.zeros((self.M,5))
+        self.y_points = np.zeros((self.M,4))
+
+        self.z_current = np.zeros(5)
+        
 
         # alter parameters to produce a (very) inaccurate linearized model
         newL = pend.l# + np.random.random_sample()
@@ -184,33 +191,36 @@ class MPCWithGPR(Controller):
         self.u_priors = []
         self.tick = 0
 
-    def square_exp(self, z_i, z_j, sigma=1, length=1):
-        '''
-        squared exponential kernel
-        '''
-        L = np.eye(np.shape(z_i)[0])
-        l = np.transpose(z_i - z_j) @ L @ (z_i - z_j)
-        e = sigma * sigma * np.exp(-0.5 * l)
-        return e
-
-    def compute_gram(self, z, sigma=1):
-
-        a = 2
-        n = np.shape(z)[0]
-        gram = np.zeros([n, n])
-        # lower triangular
-        for i in range(n):
-            for j in range(i + 1):
-                    r = np.linalg.norm(z[i,:] - z[j,:]) / a
-                    gram[i, j] = np.exp(- r * r)
-
-        # upper triangular
-        upper_tri_idx = np.triu_indices(n)
-        gram[upper_tri_idx] = gram.T[upper_tri_idx]
-
-        # plt.matshow(gram)
-        # plt.show()
+    def apply_kernel(self, x1, x2=None, a=1):
+        if x2 is None:
+            diff = spatial.distance.pdist(x1/a, metric='sqeuclidean')
+            gram = np.exp(diff/2 * -1)
+            gram = spatial.distance.squareform(gram)
+            np.fill_diagonal(gram, 1)
+        else:
+            diff = spatial.distance.cdist(x1/a, x2/a, metric='sqeuclidean')
+            gram = np.exp(diff/2 * -1)
         return gram
+
+    def make_prediction(self, z, y, z_new):
+        n_d = np.shape(y)[1]
+
+        mu = np.zeros(n_d)
+        sigma = np.zeros(n_d)
+        K = self.apply_kernel(z)
+
+        for a in range(n_d):
+            # add noise
+            K_a = K + np.eye(np.shape(K)[0]) * np.var(y[:,a])
+            L = np.linalg.cholesky(K_a)
+            alpha = np.linalg.solve(L.T, np.linalg.solve(L, y[:,a]))
+            
+            print(np.shape(y[:,a]))
+            print(np.shape(z))
+
+            dist = self.apply_kernel(z, np.atleast_2d(y[:,a]))
+            mu[a] = dist.dot(alpha)
+        return mu
 
     def train(self, z, y):
         M = np.shape(z)[0]
@@ -219,7 +229,7 @@ class MPCWithGPR(Controller):
         KZZ = np.zeros((n_d, M, M))
         sigma_y = [np.var(y[:,i]) for i in range(n_d)]
         for a in range(n_d):
-            KZZ[a,:,:] = self.compute_gram(z, sigma=sigma_y[a])
+            KZZ[a,:,:] = self.apply_kernel(z)
         return KZZ
 
     def predict(self, z, y, KZZ, z_new):
@@ -235,9 +245,9 @@ class MPCWithGPR(Controller):
 
         for a in range(n_d):
             # solve KZz etc with z_new
-            KZz[:,a] = sigma_y[a] * sigma_y[a] * np.atleast_2d([self.square_exp(z[i,:], np.ravel(z_new), sigma_y[a]) for i in range(M)])
+            KZz[:,a] = sigma_y[a] * sigma_y[a] * np.atleast_2d([self.apply_kernel(z[i,:], np.ravel(z_new)) for i in range(M)])
             KzZ[a,:] = np.transpose(KZz[:,a])
-            Kzz[a] = sigma_y[a] * sigma_y[a] * self.square_exp(np.ravel(z_new), np.ravel(z_new), sigma_y[a])
+            Kzz[a] = sigma_y[a] * sigma_y[a] * self.apply_kernel(np.ravel(z_new), np.ravel(z_new))
             # Solve mu, sigma
             invs = KzZ[a,:] @ np.linalg.inv(KZZ[a,:,:] + np.eye(M) * sigma_y[a] * sigma_y[a])
             mu[a] = invs @ y[:,a]
@@ -246,53 +256,67 @@ class MPCWithGPR(Controller):
 
     def policy(self, state, t, dt):
         print('=================================================')        
-        if self.tick > self.M + 1:
+        if self.tick > self.M:
+            t0 = time.time()
+
             if self.have_pred:
                 # measure prediction errors
                 self.l_pred_x_k = self.l_pred_state
                 self.l_err_x_k = np.abs(state - self.l_pred_state)
                 self.nl_pred_x_k = self.nl_pred_state
                 self.nl_err_x_k = np.abs(state - self.nl_pred_state)
-
-
             # remove oldest states
             self.t_priors.pop(0)
             self.x_priors.pop(0)
             self.u_priors.pop(0)
 
             # training set D {y, z}
-            y = np.zeros((self.M, len(state)))
             z = np.zeros((self.M, len(state) + 1))
+            y = np.zeros((self.M, len(state)))
 
-            # build train set D {y, z}
-            for i in range(self.M):
-                xj1_true = self.x_priors[i+1] # we keep the window at size M+1 so we can do this.
-                fxj = self.A @ self.x_priors[i]
-                # y
-                y[i,:] = xj1_true - fxj
-                # z
-                z[i,:] = np.concatenate((self.x_priors[i].transpose(), [self.u_priors[i]]))
+            # x_k-1
+            xk1 = np.zeros((self.M, len(state) + 1))
+            xk1[:, :4] = np.flip(self.x_priors, axis=0)
+            xk1[:,  4] = np.flip(self.u_priors, axis=0)
+            
+            # x_k
+            xk = np.zeros((self.M, len(state)))
+            xk[0, :] = state
+            xk[1:, :] = np.flip(self.x_priors, axis=0)[:-1,:]
+            
+            # Output y is the error between linear model 
+            # forecast for x_k (from state at x_k-1) and 
+            # reality at x_k.
+            linear_xk = np.dot(np.atleast_2d(xk1[:,:4]), self.A) + np.dot(np.atleast_2d(xk1[:, 4]).T, self.B.T)
+            y = linear_xk - xk
+            z[:, :] = xk1[:, :]
+            
+            self.z_current = np.zeros(len(state) + 1)
+            self.z_current[:4] = np.atleast_2d(state)
+            self.z_current[4] = np.atleast_2d(0)
 
-            avgy = np.average(y, axis=0)
             # train
             KZZ = self.train(z,y)
            
-            # make prediction on a new point z_new
-            z_new = np.zeros(5)
-            z_new[:4] = np.atleast_2d(state)
-            z_new[4] = 0
-            
-            # prediction is predicted deviation from linear model
-            self.pred_mu, self.pred_sig = self.predict(z, y, KZZ, z_new)
-            print('\tmean training y value: {}'.format(avgy))            
-            print('\tmu: shape {}, value={}\n\tsigma: shape {}, value={}'.format(np.shape(self.pred_mu), self.pred_mu, np.shape(self.pred_sig), self.pred_sig))
+            # make predictions
+            self.l_pred_state = np.zeros(4)
+            self.nl_pred_state = np.zeros(4)
 
-            # linear predicted k+1 state
-            self.l_pred_state = self.A @ state 
-            # non-linear predicted k+1 state
-            self.nl_pred_state = self.A @ state + self.pred_mu
+            # linear pred
+            self.l_pred_state = self.A @ self.z_current[:4]
+            # nonlinear pred
+            self.pred_mu = self.make_prediction(z, y, self.z_current)
+            # self.pred_mu, self.pred_sg = self.predict(z, y, KZZ, self.z_current)
+            self.nl_pred_state = self.pred_mu + self.l_pred_state
+            print('\tmu: {}'.format(self.pred_mu))
+            # print('\tmu: {}\n\tsigma: {}'.format(self.pred_mu, self.pred_sig))
+            
+            self.z_points = z
+            self.y_points = y
 
             self.have_pred = True
+            t1 = time.time()
+            print('executed in '.format(t1-t0))
 
             action = 0
         else:
@@ -311,9 +335,37 @@ class MPCWithGPR(Controller):
         return fig
     def update_plot(self, fig):
         plt.clf()
-        ax0 = fig.add_subplot(111)
+        labels = [r'$x$', r'$\dot{x}$', r'$\theta$', r'$\dot{\theta}$']
+        ax0 = fig.add_subplot(221)
+        ax0.scatter(self.z_points[:, 0], self.y_points[:, 0], c='k', label='training set')
+        ax0.scatter(self.z_current[0], self.pred_mu[0], c='r', label='prediction')
+        ax0.set_xlabel(labels[0])
+        ax0.set_ylabel('error in ' + labels[0])
+        ax0.set_title('predicting ' + labels[0])
+
+        ax1 = fig.add_subplot(222)
+        ax1.scatter(self.z_points[:, 1], self.y_points[:, 1], c='k', label='training set')
+        ax1.scatter(self.z_current[1], self.pred_mu[1], c='r', label='prediction')
+        ax1.set_xlabel(labels[1])
+        ax1.set_ylabel('error in ' + labels[1])
+        ax1.set_title('predicting ' + labels[1])
+
+        ax2 = fig.add_subplot(223)
+        ax2.scatter(self.z_points[:, 2], self.y_points[:, 2], c='k', label='training set')
+        ax2.scatter(self.z_current[2], self.pred_mu[2], c='r', label='prediction')
+        ax2.set_xlabel(labels[2])
+        ax2.set_ylabel('error in ' + labels[2])
+        ax2.set_title('predicting ' + labels[2])
+
+        ax3 = fig.add_subplot(224)
+        ax3.scatter(self.z_points[:, 3], self.y_points[:, 3], c='k', label='training set')
+        ax3.scatter(self.z_current[3], self.pred_mu[3], c='r', label='prediction')
+        ax3.set_xlabel(labels[3])
+        ax3.set_ylabel('error in ' + labels[3])
+        ax3.set_title('predicting ' + labels[3])
+
         plt.draw()
-        plt.pause(0.0001)
+        plt.pause(0.001)
         
 class BangBang(Controller):
     def __init__(self, setpoint, magnitude):
