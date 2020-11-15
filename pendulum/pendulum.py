@@ -106,13 +106,14 @@ class Simulation(object):
     The simulation object. Provide a pendulum, a timestep, a final time, and a list of 
     external forces.
     '''
-    def __init__(self, pend, dt, t_final, u, control_every):
+    def __init__(self, pend, dt, t_final, u, control_every, noise_scale):
         self.pend = pend # pendulum to be simulated
         self.dt = dt # time step
         self.t_final = t_final # end at or before this time
         self.u = u # list of external forces applied
         self.times = [] # list of discrete points in time simulated
         self.control_every = control_every # control action interval, 1 = control every dt, 2 = control every other dt, etc.
+        self.noise_scale = noise_scale # noise given to the state. can be scalar (equal noise) or len 4 array (noise given to each state)
         self.data={
             'x': [], 
             'xdot': [],
@@ -172,9 +173,9 @@ class Simulation(object):
             # controller takes action every `control_every` steps
             if n % self.control_every == 0:
 
-                noise_on_state = x_k + np.random.random_sample(np.shape(x_k))* 0.1
+                noise_on_state = x_k + np.random.random_sample(np.shape(x_k)) * self.noise_scale
 
-                action = controller.policy(x_k, t_k, self.dt)
+                action = controller.policy(noise_on_state, t_k, self.dt)
                 if controller.plotting:
                     controller.update_plot(figure)
             else:
@@ -219,24 +220,24 @@ class Simulation(object):
         self.data['control action'].append(action)
 
         # non-linear predictions & errors
-        self.data['nl_pred_x'].append(nl_pred_x_k[0])
-        self.data['nl_pred_xd'].append(nl_pred_x_k[1])
-        self.data['nl_pred_t'].append(nl_pred_x_k[2])
-        self.data['nl_pred_td'].append(nl_pred_x_k[3])
-        self.data['nl_error_x'].append(nl_err_x_k[0])
-        self.data['nl_error_xd'].append(nl_err_x_k[1])
-        self.data['nl_error_t'].append(nl_err_x_k[2])
-        self.data['nl_error_td'].append(nl_err_x_k[3])
+        self.data['nl_pred_x'].append(nl_pred_x_k[0,0])
+        self.data['nl_pred_xd'].append(nl_pred_x_k[0,1])
+        self.data['nl_pred_t'].append(nl_pred_x_k[0,2])
+        self.data['nl_pred_td'].append(nl_pred_x_k[0,3])
+        self.data['nl_error_x'].append(nl_err_x_k[0,0])
+        self.data['nl_error_xd'].append(nl_err_x_k[0,1])
+        self.data['nl_error_t'].append(nl_err_x_k[0,2])
+        self.data['nl_error_td'].append(nl_err_x_k[0,3])
 
         # linear predictions & errors
-        self.data['l_pred_x'].append(l_pred_x_k[0])
-        self.data['l_pred_xd'].append(l_pred_x_k[1])
-        self.data['l_pred_t'].append(l_pred_x_k[2])
-        self.data['l_pred_td'].append(l_pred_x_k[3])
-        self.data['l_error_x'].append(l_err_x_k[0])
-        self.data['l_error_xd'].append(l_err_x_k[1])
-        self.data['l_error_t'].append(l_err_x_k[2])
-        self.data['l_error_td'].append(l_err_x_k[3])
+        self.data['l_pred_x'].append(l_pred_x_k[0,0])
+        self.data['l_pred_xd'].append(l_pred_x_k[0,1])
+        self.data['l_pred_t'].append(l_pred_x_k[0,2])
+        self.data['l_pred_td'].append(l_pred_x_k[0,3])
+        self.data['l_error_x'].append(l_err_x_k[0,0])
+        self.data['l_error_xd'].append(l_err_x_k[0,1])
+        self.data['l_error_t'].append(l_err_x_k[0,2])
+        self.data['l_error_td'].append(l_err_x_k[0,3])
 
 
     def wrap2pi(self, theta):
@@ -500,23 +501,25 @@ class Visualizer(object):
 
 if __name__ == "__main__":
     # forces: (magnitude, start time, duration)
-    forces = [(0.05,0,30)]
+    forces = []
     init = np.array([0,0,np.pi/8,0])
-    pnd = Pendulum(10, 2, 4, 9.81, x_0=init)
-    dt = 0.005
+    pnd = Pendulum(4+np.random.random_sample()*7, 1+np.random.random_sample()*6, 2+np.random.random_sample()*5, 9.81, x_0=init)
+    dt = 0.004
     every = 10
+    noise=.01
     sim = Simulation(
         pnd, 
         dt, 
-        8, 
+        10, 
         forces,
-        every)
+        every,
+        noise)
     ctrl2 = controller.MPCWithGPR(
-        25,
+        30,
         pnd,
         dt,
         every,
-        plotting=False)
+        plotting=True)
 
     data = sim.simulate(
         ctrl2)
@@ -524,7 +527,7 @@ if __name__ == "__main__":
     plot = Visualizer(
         data,
         pnd,
-        frameskip = 1,
+        frameskip = 3,
     )
 
     plot.display_viz()

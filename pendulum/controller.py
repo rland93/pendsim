@@ -2,6 +2,7 @@ import numpy as np
 from scipy import spatial
 import cvxpy as cp
 from scipy.signal import cont2discrete
+from scipy import optimize
 import matplotlib.pyplot as plt
 from sklearn.gaussian_process import GaussianProcessRegressor
 import sklearn.gaussian_process
@@ -145,16 +146,16 @@ class MPCWithGPR(Controller):
         self.pend = pend
         self.plotting = plotting
 
-        self.l_pred_x_k = np.zeros(4)
-        self.l_err_x_k = np.zeros(4)
-        self.nl_pred_x_k = np.zeros(4)
-        self.nl_err_x_k = np.zeros(4)
+        self.l_pred_x_k = np.zeros((1,4))
+        self.l_err_x_k = np.zeros((1,4))
+        self.nl_pred_x_k = np.zeros((1,4))
+        self.nl_err_x_k = np.zeros((1,4))
 
-        self.pred_mu = np.zeros(4)
-        self.pred_sig = np.zeros(4)
+        self.pred_mu = np.zeros((1,4))
+        self.pred_sig = np.zeros((1,4))
 
-        self.l_pred_state = np.zeros(4)
-        self.nl_pred_state = np.zeros(4)
+        self.l_pred_state = np.zeros((1,4))
+        self.nl_pred_state = np.zeros((1,4))
     
         self.have_pred = False
 
@@ -162,13 +163,14 @@ class MPCWithGPR(Controller):
         self.y_points = np.zeros((self.M,4))
 
         self.z_current = np.zeros(5)
+        self.K = np.zeros((np.size(self.M),np.size(self.M)))
         
 
         # alter parameters to produce a (very) inaccurate linearized model
-        newL = pend.l# + np.random.random_sample()
-        newm = pend.m# + np.random.random_sample()
-        newM = pend.M# + np.random.random_sample()
-        newg = pend.g# + np.random.random_sample()
+        newL = pend.l#  + np.random.random_sample()
+        newm = pend.m#  + np.random.random_sample()
+        newM = pend.M#  + np.random.random_sample()
+        newg = pend.g#  + np.random.random_sample()
 
         A = np.array([
             [0, 1, 0, 0],
@@ -201,70 +203,75 @@ class MPCWithGPR(Controller):
             diff = spatial.distance.cdist(x1/a, x2/a, metric='sqeuclidean')
             gram = np.exp(diff/2 * -1)
         return gram
+    
+    def loss(self, z, y, theta):
+        K = self.apply_kernel(z, a=theta)
+        ll = np.zeros(np.shape(y)[1])
+        for j in range(np.shape(y)[1]):
+            Kj = K + K[np.diag_indices_from(K)] * np.var(y[:,j])
+            Lj = np.linalg.cholesky(Kj)
+            alpha_j = np.linalg.solve(Lj.T, np.linalg.solve(Lj, y[:,j]))
+            ll_j = -0.5 * np.dot(y[:,j], alpha_j.T)
+            ll_j -= np.log(np.diag(Lj)).sum()
+            ll_j -= Kj.shape[0] * 0.5 * np.log(2 * np.pi)
+            ll[j] = ll_j
+        log_likelihood = np.sum(ll)
+        return log_likelihood
+    
+    def optimize(self, z, y, bounds):
+        b = optimize.Bounds(bounds[0], bounds[1])
+        theta = 1
+        def obj_func(theta, z, y):
+            return -self.loss(z, y, theta)
+        
+        results = optimize.minimize(
+            obj_func,
+            theta,
+            (z, y), 
+            bounds=b,
+            method='Nelder-Mead',
+            options={'disp': True}
+        )
+        print('\ttheta={}'.format(results['x']))
+        return(results['x'])
+
 
     def make_prediction(self, z, y, z_new):
+        # form posterior
         n_d = np.shape(y)[1]
+        mu = np.zeros((1,n_d))
+        sigma = np.zeros((1,n_d))
 
-        mu = np.zeros(n_d)
-        sigma = np.zeros(n_d)
-        K = self.apply_kernel(z)
+        # theta_opt = self.optimize(z, y, (1e-3, 1e3))
+        K = self.apply_kernel(z, a=.5)
+
 
         for a in range(n_d):
-            # add noise
-            K_a = K + np.eye(np.shape(K)[0]) * np.var(y[:,a])
-            L = np.linalg.cholesky(K_a)
+            Ka = K + np.eye(np.shape(K)[0]) * np.var(y[:,a])
+            L = np.linalg.cholesky(Ka)
             alpha = np.linalg.solve(L.T, np.linalg.solve(L, y[:,a]))
-            
-            print(np.shape(y[:,a]))
-            print(np.shape(z))
-
-            dist = self.apply_kernel(z, np.atleast_2d(y[:,a]))
-            mu[a] = dist.dot(alpha)
-        return mu
-
-    def train(self, z, y):
-        M = np.shape(z)[0]
-        n_d = np.shape(y)[1]
-        n_z = np.shape(z)[1]
-        KZZ = np.zeros((n_d, M, M))
-        sigma_y = [np.var(y[:,i]) for i in range(n_d)]
-        for a in range(n_d):
-            KZZ[a,:,:] = self.apply_kernel(z)
-        return KZZ
-
-    def predict(self, z, y, KZZ, z_new):
-        M = np.shape(z)[0]
-        n_d = np.shape(y)[1]
-        n_z = np.shape(z)[1]
-        KzZ = np.zeros((n_d, M))
-        KZz = np.zeros((M, n_d))
-        Kzz = np.zeros((n_d))
-        sigma_y = [np.var(y[:,i]) for i in range(n_d)]
-        mu = np.zeros((n_d))
-        sg = np.zeros((n_d))
-
-        for a in range(n_d):
-            # solve KZz etc with z_new
-            KZz[:,a] = sigma_y[a] * sigma_y[a] * np.atleast_2d([self.apply_kernel(z[i,:], np.ravel(z_new)) for i in range(M)])
-            KzZ[a,:] = np.transpose(KZz[:,a])
-            Kzz[a] = sigma_y[a] * sigma_y[a] * self.apply_kernel(np.ravel(z_new), np.ravel(z_new))
-            # Solve mu, sigma
-            invs = KzZ[a,:] @ np.linalg.inv(KZZ[a,:,:] + np.eye(M) * sigma_y[a] * sigma_y[a])
-            mu[a] = invs @ y[:,a]
-            sg[a] = Kzz[a] - invs @ KZz[:,a]
-        return mu, sg
+            # mean of posterior
+            dist = self.apply_kernel(np.atleast_2d(z_new), z)
+            mu[0,a] = dist.dot(alpha)
+            # variance of posterior
+            var = np.linalg.solve(L, dist.T)
+            sigma[0,a] = self.apply_kernel(np.atleast_2d(z_new)) - np.dot(var.T, var)
+        return mu, sigma, K
 
     def policy(self, state, t, dt):
-        print('=================================================')        
+        print('control action: ')        
         if self.tick > self.M:
             t0 = time.time()
 
             if self.have_pred:
                 # measure prediction errors
-                self.l_pred_x_k = self.l_pred_state
-                self.l_err_x_k = np.abs(state - self.l_pred_state)
-                self.nl_pred_x_k = self.nl_pred_state
-                self.nl_err_x_k = np.abs(state - self.nl_pred_state)
+                self.l_pred_x_k = np.atleast_2d(self.l_pred_state)
+                self.l_err_x_k = np.abs(np.atleast_2d(state - self.l_pred_state))
+                self.nl_pred_x_k = np.atleast_2d(self.nl_pred_state)
+                self.nl_err_x_k = np.abs(np.atleast_2d(state - self.nl_pred_state))
+            
+
+
             # remove oldest states
             self.t_priors.pop(0)
             self.x_priors.pop(0)
@@ -289,38 +296,41 @@ class MPCWithGPR(Controller):
             # reality at x_k.
             linear_xk = np.dot(np.atleast_2d(xk1[:,:4]), self.A) + np.dot(np.atleast_2d(xk1[:, 4]).T, self.B.T)
             y = linear_xk - xk
-            z[:, :] = xk1[:, :]
+            z = xk1
             
+            
+
+
             self.z_current = np.zeros(len(state) + 1)
             self.z_current[:4] = np.atleast_2d(state)
             self.z_current[4] = np.atleast_2d(0)
-
-            # train
-            KZZ = self.train(z,y)
            
             # make predictions
             self.l_pred_state = np.zeros(4)
             self.nl_pred_state = np.zeros(4)
 
             # linear pred
+            
+            # predict linear error
+            self.pred_mu, self.pred_sig, self.K = self.make_prediction(z, y, self.z_current)
+
             self.l_pred_state = self.A @ self.z_current[:4]
-            # nonlinear pred
-            self.pred_mu = self.make_prediction(z, y, self.z_current)
-            # self.pred_mu, self.pred_sg = self.predict(z, y, KZZ, self.z_current)
-            self.nl_pred_state = self.pred_mu + self.l_pred_state
-            print('\tmu: {}'.format(self.pred_mu))
-            # print('\tmu: {}\n\tsigma: {}'.format(self.pred_mu, self.pred_sig))
+            self.nl_pred_state = self.l_pred_state - self.pred_mu
+
+            print('\tmu: {}\n\tsigma: {}'.format(self.pred_mu, self.pred_sig))
             
             self.z_points = z
             self.y_points = y
 
             self.have_pred = True
             t1 = time.time()
-            print('executed in '.format(t1-t0))
+            print('executed in {}'.format(t1-t0))
 
-            action = 0
-        else:
-            action = 0
+
+
+        action = 0
+
+
         
 
         self.tick += 1
@@ -331,41 +341,66 @@ class MPCWithGPR(Controller):
         return action
 
     def init_plot(self):
-        fig = plt.figure()
+        fig = plt.figure(figsize=(8,8))
         return fig
-    def update_plot(self, fig):
-        plt.clf()
-        labels = [r'$x$', r'$\dot{x}$', r'$\theta$', r'$\dot{\theta}$']
-        ax0 = fig.add_subplot(221)
-        ax0.scatter(self.z_points[:, 0], self.y_points[:, 0], c='k', label='training set')
-        ax0.scatter(self.z_current[0], self.pred_mu[0], c='r', label='prediction')
-        ax0.set_xlabel(labels[0])
-        ax0.set_ylabel('error in ' + labels[0])
-        ax0.set_title('predicting ' + labels[0])
 
-        ax1 = fig.add_subplot(222)
-        ax1.scatter(self.z_points[:, 1], self.y_points[:, 1], c='k', label='training set')
-        ax1.scatter(self.z_current[1], self.pred_mu[1], c='r', label='prediction')
+    def update_plot(self, fig):
+        # only for those items in the state space...
+        # e.g. 4 vars in state space, so we set rows=2 and cols=2.
+        ss_labels = [r'$x$', r'$\dot{x}$', r'$\theta$', r'$\dot{\theta}$']
+        ss_cols = 2
+        ss_rows = 2
+        
+        # Clear the figure before redraw
+        plt.clf()
+        f = plt.gcf()
+        f, axs = plt.subplots(ss_rows + 1, ss_cols, num=1)
+
+        for i in range(ss_cols):
+            for j in range(ss_rows):
+                a_n = i*ss_cols + j
+                axs[i,j].scatter(self.z_points[:, a_n], self.y_points[:, a_n], c='k', marker='+', label='training set')
+                axs[i,j].errorbar(self.z_current[a_n], self.pred_mu[0, a_n], yerr=self.pred_sig[0, a_n], fmt='_', c='r', label='prediction')
+                axs[i,j].set_xlabel(ss_labels[a_n])
+                axs[i,j].set_ylabel('error in ' + ss_labels[a_n])
+                axs[i,j].set_title('predicting ' + ss_labels[a_n])
+
+        axs[2, 1].matshow(self.K)
+        axs[2, 1].set_title("Covariance Matrix")
+
+        plt.tight_layout()
+        plt.draw()
+        plt.pause(0.01)
+'''
+        ax1 = fig.add_subplot(322)
+        ax1.scatter(self.z_points[:, 1], self.y_points[:, 1], c='k', marker='+', label='training set')
+        # ax1.scatter(self.z_current[1], self.pred_mu[0,1], c='r', marker='+', label='prediction')
+        ax1.errorbar(self.z_current[1], self.pred_mu[0, 1], yerr=self.pred_sig[0, 1], fmt='_', c='r', label='prediction')
         ax1.set_xlabel(labels[1])
         ax1.set_ylabel('error in ' + labels[1])
         ax1.set_title('predicting ' + labels[1])
 
-        ax2 = fig.add_subplot(223)
-        ax2.scatter(self.z_points[:, 2], self.y_points[:, 2], c='k', label='training set')
-        ax2.scatter(self.z_current[2], self.pred_mu[2], c='r', label='prediction')
+        ax2 = fig.add_subplot(323)
+        ax2.scatter(self.z_points[:, 2], self.y_points[:, 2], c='k', marker='+', label='training set')
+        # ax2.scatter(self.z_current[2], self.pred_mu[0,2], c='r', marker='+', label='prediction')
+        ax2.errorbar(self.z_current[2], self.pred_mu[0, 2], yerr=self.pred_sig[0, 2], fmt='_', c='r', label='prediction')
         ax2.set_xlabel(labels[2])
         ax2.set_ylabel('error in ' + labels[2])
         ax2.set_title('predicting ' + labels[2])
 
-        ax3 = fig.add_subplot(224)
-        ax3.scatter(self.z_points[:, 3], self.y_points[:, 3], c='k', label='training set')
-        ax3.scatter(self.z_current[3], self.pred_mu[3], c='r', label='prediction')
+        ax3 = fig.add_subplot(324)
+        ax3.scatter(self.z_points[:, 3], self.y_points[:, 3], c='k', marker='+', label='training set')
+        # ax3.scatter(self.z_current[3], self.pred_mu[0,3], c='r', marker='+', label='prediction')
+        ax3.errorbar(self.z_current[3], self.pred_mu[0,3], yerr=self.pred_sig[0, 3], fmt='_', c='r', label='prediction')
         ax3.set_xlabel(labels[3])
         ax3.set_ylabel('error in ' + labels[3])
         ax3.set_title('predicting ' + labels[3])
 
-        plt.draw()
-        plt.pause(0.001)
+        ax4 = fig.add_subplot(325)
+        ax4.matshow(self.K)
+        ax4.set_title("Covariance Matrix")
+'''
+
         
 class BangBang(Controller):
     def __init__(self, setpoint, magnitude):
