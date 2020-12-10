@@ -135,6 +135,10 @@ class Simulation(object):
             'nl_error_xd' : [],
             'nl_error_t' : [],
             'nl_error_td' : [],
+            'nl_sig_x' : [],
+            'nl_sig_xd' : [],
+            'nl_sig_t' : [],
+            'nl_sig_td' : [],
             'l_pred_x' : [],
             'l_pred_xd' : [],
             'l_pred_t' : [],
@@ -142,7 +146,8 @@ class Simulation(object):
             'l_error_x' : [],
             'l_error_xd' : [],
             'l_error_t' : [],
-            'l_error_td' : [],} # data returned by the sim
+            'l_error_td' : [],
+            } # data returned by the sim
     
     def simulate(self, controller):
         '''
@@ -178,11 +183,10 @@ class Simulation(object):
                 action = controller.policy(noise_on_state, t_k, self.dt)
                 if controller.plotting:
                     controller.update_plot(figure)
-            else:
-                action = 0
+
             
             # write data
-            self.write_data_timestep(x_k, t_k, u_k, action, controller.l_pred_x_k, controller.l_err_x_k, controller.nl_pred_x_k, controller.nl_err_x_k)
+            self.write_data_timestep(x_k, t_k, u_k, action, controller.l_pred_x_k, controller.l_err_x_k, controller.nl_pred_x_k, controller.nl_err_x_k, controller.pred_sig)
 
             # add action to extern. force to get total force
             u_k += action
@@ -193,7 +197,7 @@ class Simulation(object):
             n += 1
         return pd.DataFrame(index = self.times, data = self.data)
     
-    def write_data_timestep(self, x_k, t_k, u_k, action, l_pred_x_k, l_err_x_k, nl_pred_x_k, nl_err_x_k):
+    def write_data_timestep(self, x_k, t_k, u_k, action, l_pred_x_k, l_err_x_k, nl_pred_x_k, nl_err_x_k, nl_sigma):
         '''
         write recorded data for a single timestep
         '''
@@ -228,6 +232,12 @@ class Simulation(object):
         self.data['nl_error_xd'].append(nl_err_x_k[0,1])
         self.data['nl_error_t'].append(nl_err_x_k[0,2])
         self.data['nl_error_td'].append(nl_err_x_k[0,3])
+        
+        # sigma
+        self.data['nl_sig_x'].append(nl_sigma[0,0])
+        self.data['nl_sig_xd'].append(nl_sigma[0,1])
+        self.data['nl_sig_t'].append(nl_sigma[0,2])
+        self.data['nl_sig_td'].append(nl_sigma[0,3])
 
         # linear predictions & errors
         self.data['l_pred_x'].append(l_pred_x_k[0,0])
@@ -451,75 +461,161 @@ class Visualizer(object):
         ax2.legend()
 
         # Errors
-        figure2, axs = plt.subplots(4, 2)
+        figure2, axs1 = plt.subplots(nrows=5, sharex=True)
+        figure3, axs2 = plt.subplots(nrows=5, sharex=True)
+        figure4, axs3 = plt.subplots(nrows=5, sharex=True)
+        figure5, axs4 = plt.subplots(nrows=6, sharex=True)
 
         labels = [r'$x$', r'$\dot{x}$', r'$\theta$', r'$\dot{\theta}$']
 
+        # u
+        axs1[0].set_title('control action')
+        axs1[0].plot(self.data['control action'], 'k', label=('controller action'))
+        axs1[0].legend()
         # x
-        axs[0,0].plot(self.data['x'], 'k-', label=('true: ' + labels[0]))
-        axs[0,0].plot(self.data['l_pred_x'], 'g--', label=('l pred: ' + labels[0]))
-        axs[0,0].plot(self.data['nl_pred_x'], 'b:', label=('nl pred: ' + labels[0]))
-        axs[0,0].legend()
-        axs[0,0].set_title('Predicted Values: ' + labels[0])
-        axs[1,0].plot(self.data['l_error_x'], 'g--', label=('l err: ' + labels[0]))
-        axs[1,0].plot(self.data['nl_error_x'], 'b:', label=('nl err: ' + labels[0]))
-        axs[1,0].legend()
-        axs[1,0].set_title('Error Values: ' + labels[0])
+        axs1[1].plot(self.data['x'], 'k-', label=('true: ' + labels[0]))
+        axs1[1].plot(self.data['l_pred_x'], 'g--', label=('l pred: ' + labels[0]))
+        axs1[1].plot(self.data['nl_pred_x'], 'b:', label=('nl pred: ' + labels[0]))
+        axs1[1].legend()
+        axs1[1].set_title('Predicted Values: ' + labels[0])
         # xd
-        axs[0,1].plot(self.data['xdot'], 'k-', label=('true: ' + labels[1]))
-        axs[0,1].plot(self.data['l_pred_xd'], 'g--', label=('l pred: ' + labels[1]))
-        axs[0,1].plot(self.data['nl_pred_xd'], 'b:', label=('nl pred: ' + labels[1]))
-        axs[0,1].legend()
-        axs[0,1].set_title('Predicted Values: ' + labels[1])
-        axs[1,1].plot(self.data['l_error_xd'], 'g--', label=('l err: ' + labels[1]))
-        axs[1,1].plot(self.data['nl_error_xd'], 'b:', label=('nl err: ' + labels[1]))
-        axs[1,1].legend()
-        axs[1,1].set_title('Error Values: ' + labels[1])
+        axs1[2].plot(self.data['xdot'], 'k-', label=('true: ' + labels[1]))
+        axs1[2].plot(self.data['l_pred_xd'], 'g--', label=('l pred: ' + labels[1]))
+        axs1[2].plot(self.data['nl_pred_xd'], 'b:', label=('nl pred: ' + labels[1]))
+        axs1[2].legend()
+        axs1[2].set_title('Predicted Values: ' + labels[1])
         # td
-        axs[2,0].plot(self.data['theta'], 'k-', label=('true: ' + labels[2]))
-        axs[2,0].plot(self.data['l_pred_t'], 'g--', label=('l pred: ' + labels[2]))
-        axs[2,0].plot(self.data['nl_pred_t'], 'b:', label=('nl pred: ' + labels[2]))
-        axs[2,0].legend()
-        axs[2,0].set_title('Predicted Values: ' + labels[2])
-        axs[3,0].plot(self.data['l_error_t'], 'g--', label=('l err: ' + labels[2]))
-        axs[3,0].plot(self.data['nl_error_t'], 'b:', label=('nl err: ' + labels[2]))
-        axs[3,0].legend()
-        axs[3,0].set_title('Error Values: ' + labels[2])
+        axs1[3].plot(self.data['theta'], 'k-', label=('true: ' + labels[2]))
+        axs1[3].plot(self.data['l_pred_t'], 'g--', label=('l pred: ' + labels[2]))
+        axs1[3].plot(self.data['nl_pred_t'], 'b:', label=('nl pred: ' + labels[2]))
+        axs1[3].legend()
+        axs1[3].set_title('Predicted Values: ' + labels[2])
+        # td
+        axs1[4].plot(self.data['thetadot'], 'k-', label=('true: ' + labels[3]))
+        axs1[4].plot(self.data['l_pred_td'], 'g--', label=('l pred: ' + labels[3]))
+        axs1[4].plot(self.data['nl_pred_td'], 'b:', label=('nl pred: ' + labels[3]))
+        axs1[4].legend()
+        axs1[4].set_title('Predicted Values: ' + labels[3])
 
+        # u
+        axs2[0].set_title('control action')
+        axs2[0].plot(self.data['control action'], 'k', label=('controller action'))
+        axs2[0].legend()
+        # x
+        axs2[1].plot(self.data['l_error_x'], 'g--', label=('l err: ' + labels[0]))
+        axs2[1].plot(self.data['nl_error_x'], 'b:', label=('nl err: ' + labels[0]))
+        axs2[1].legend()
+        axs2[1].set_title('Error Values: ' + labels[0])
+        # xd
+        axs2[2].plot(self.data['l_error_xd'], 'g--', label=('l err: ' + labels[1]))
+        axs2[2].plot(self.data['nl_error_xd'], 'b:', label=('nl err: ' + labels[1]))
+        axs2[2].legend()
+        axs2[2].set_title('Error Values: ' + labels[1])
+        # t
+        axs2[3].plot(self.data['l_error_t'], 'g--', label=('l err: ' + labels[2]))
+        axs2[3].plot(self.data['nl_error_t'], 'b:', label=('nl err: ' + labels[2]))
+        axs2[3].legend()
+        axs2[3].set_title('Error Values: ' + labels[2])
         # td
-        axs[2,1].plot(self.data['thetadot'], 'k-', label=('true: ' + labels[3]))
-        axs[2,1].plot(self.data['l_pred_td'], 'g--', label=('l pred: ' + labels[3]))
-        axs[2,1].plot(self.data['nl_pred_td'], 'b:', label=('nl pred: ' + labels[3]))
-        axs[2,1].legend()
-        axs[2,1].set_title('Predicted Values: ' + labels[3])
-        axs[3,1].plot(self.data['l_error_td'], 'g--', label=('l err: ' + labels[3]))
-        axs[3,1].plot(self.data['nl_error_td'], 'b:', label=('nl err: ' + labels[3]))
-        axs[3,1].legend()
-        axs[3,1].set_title('Error Values: ' + labels[3])
+        axs2[4].plot(self.data['l_error_td'], 'g--', label=('l err: ' + labels[3]))
+        axs2[4].plot(self.data['nl_error_td'], 'b:', label=('nl err: ' + labels[3]))
+        axs2[4].legend()
+        axs2[4].set_title('Error Values: ' + labels[3])
+
+        # u
+        axs3[0].set_title('control action')
+        axs3[0].plot(self.data['control action'], 'k', label=('controller action'))
+        axs3[0].legend()
+        # x
+        axs3[1].plot(self.data['nl_sig_x'], 'k:', label=('sigma: ' + labels[0]))
+        axs3[1].legend()
+        axs3[1].set_title('uncertainty Values: ' + labels[0])
+        # xd
+        axs3[2].plot(self.data['nl_sig_xd'], 'k:', label=('sigma: ' + labels[1]))
+        axs3[2].legend()
+        axs3[2].set_title('uncertainty Values: ' + labels[1])
+        # t
+        axs3[3].plot(self.data['nl_sig_t'], 'k:', label=('sigma: ' + labels[2]))
+        axs3[3].legend()
+        axs3[3].set_title('uncertainty Values: ' + labels[2])
+        # td
+        axs3[4].plot(self.data['nl_sig_td'], 'k:', label=('sigma: ' + labels[3]))
+        axs3[4].legend()
+        axs3[4].set_title('uncertainty Values: ' + labels[3])
+        
+
+        axs4[0].set_title('States')
+        axs4[0].plot(self.data['x'], c='b', label=r'$x$')
+        axs4[0].plot(self.data['theta'], c='r', label=r'$\theta$')
+        axs4[0].plot(self.data['xdot'], c='g', label=r'$\dot{x}$')    
+        axs4[0].plot(self.data['thetadot'], c='k', label=r'$\dot{\theta}$')
+        axs4[0].legend()
+
+        axs4[1].set_title('Control Action')
+        axs4[1].plot(self.data['control action'], 'k', label='controller action')
+        axs4[1].legend()
+
+        axs4[2].set_title('Non-linear Uncertainty')
+        axs4[2].plot(self.data['nl_sig_x'], 'b:', label=('sigma: ' + labels[0]))
+        axs4[2].plot(self.data['nl_sig_t'], 'r:', label=('sigma: ' + labels[2]))
+        axs4[2].legend()
+
+        axs4[3].set_title('Non-linear Uncertainty')
+        axs4[3].plot(self.data['nl_sig_xd'], 'g:', label=('sigma: ' + labels[1]))
+        axs4[3].plot(self.data['nl_sig_td'], 'k:', label=('sigma: ' + labels[3]))
+        axs4[3].legend()
+        
+        axs4[4].set_title('Absolute Error')
+        axs4[4].plot(self.data['l_error_x'], 'b--', label=('l err: ' + labels[0]))
+        axs4[4].plot(self.data['nl_error_x'], 'b', label=('nl err: ' + labels[0]))
+        axs4[4].plot(self.data['l_error_t'], 'r--', label=('l err: ' + labels[2]))
+        axs4[4].plot(self.data['nl_error_t'], 'r', label=('nl err: ' + labels[2]))
+        axs4[4].legend()
+
+        axs4[5].set_title('Absolute Error')
+        axs4[5].plot(self.data['l_error_xd'], 'g--', label=('l err: ' + labels[1]))
+        axs4[5].plot(self.data['nl_error_xd'], 'g', label=('nl err: ' + labels[1]))
+        axs4[5].plot(self.data['l_error_td'], 'k--', label=('l err: ' + labels[3]))
+        axs4[5].plot(self.data['nl_error_td'], 'k', label=('nl_err: ' + labels[3]))
+        axs4[5].legend()
 
         plt.show()
+
 
 if __name__ == "__main__":
     # forces: (magnitude, start time, duration)
     forces = []
-    init = np.array([0,0,np.pi/8,0])
-    pnd = Pendulum(4+np.random.random_sample()*7, 1+np.random.random_sample()*6, 2+np.random.random_sample()*5, 9.81, x_0=init)
-    dt = 0.004
+    # period
+    dt = 0.001
+    # frequency
+    dt_inv = 1/dt
+
+    init = np.array([0,0,0.5,0])
+    pnd = Pendulum(9, 6, 3, 9.81, x_0=init)
+    
+    # control action every n timesteps
     every = 10
-    noise=.01
+
+    # ctrl action is .01
+    # 100 -> 1 second
+
+
+    # measurement noise
+    noise=0
+
     sim = Simulation(
         pnd, 
         dt, 
-        10, 
+        12, 
         forces,
         every,
         noise)
     ctrl2 = controller.MPCWithGPR(
-        30,
+        10,
         pnd,
         dt,
         every,
-        plotting=True)
+        plotting=False)
 
     data = sim.simulate(
         ctrl2)
@@ -527,7 +623,7 @@ if __name__ == "__main__":
     plot = Visualizer(
         data,
         pnd,
-        frameskip = 3,
+        frameskip = 10,
     )
 
     plot.display_viz()
