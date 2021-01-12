@@ -35,7 +35,7 @@ class Controller(object):
  
 
 class MPCController(Controller):
-    def __init__(self, init_state, pendulum, T, dt, u_max=1000, plotting=False):
+    def __init__(self, pendulum, T, dt, u_max=1000, plotting=False):
         self.pendulum = pendulum 
         self.plotting = plotting
         self.setpoint = 0
@@ -140,9 +140,10 @@ class NoController(Controller):
         return 0
 
 class MPCWithGPR(Controller):
-    def __init__(self, window, pend, dt, every, plotting=False):
+    def __init__(self, pend, dt, window=8, every=5, future=10, plotting=False):
         # prior observations
         self.M = window
+        self.T = future
 
         self.integrator = 0
 
@@ -211,7 +212,7 @@ class MPCWithGPR(Controller):
             diff = spatial.distance.cdist(x1/a, x2/a, metric='sqeuclidean')
             gram = np.exp(diff/2 * -1)
         return gram
-    
+
     def ll_loss(self, z, y, theta):
         K = self.apply_kernel(z, a=theta)
         K[np.diag_indices_from(K)] += np.var(y, axis=1)
@@ -236,27 +237,37 @@ class MPCWithGPR(Controller):
         print('\ttheta={}'.format(results['x']))
         return(results['x'])
 
+    def make_prediction(self, z, y, x, u):
+        '''
+        z: prior   x, u
+        y: prior g(x, u)
 
-    def make_prediction(self, z, y, z_new):
-        # form posterior
-        n_d = np.shape(y)[1]
-        mu = np.zeros((1,n_d))
-        sigma = np.zeros((1,n_d))
+        x: state
+        u: control input
+        '''
+        # prefill
+        mu = np.zeros((1,np.shape(y)[1]))
+        sigma = np.zeros((1,np.shape(y)[1]))
+        z_new = np.empty((1,5))
 
-        theta_opt = self.optimize(z, y)
-        K = self.apply_kernel(z, a=1)
+        z_new[:, :4] = np.asarray(x)
+        z_new[:, 4] = np.asarray(u)
 
-        for a in range(n_d):
-            Ka = K + np.eye(np.shape(K)[0]) * np.var(y[:,a])
-            L = np.linalg.cholesky(Ka)
-            alpha = np.linalg.solve(L.T, np.linalg.solve(L, y[:,a]))
-            # mean of posterior
-            dist = self.apply_kernel(np.atleast_2d(z_new), z)
-            mu[0,a] = dist.dot(alpha)
-            # variance of posterior
-            var = np.linalg.solve(L, dist.T)
-            sigma[0,a] = - 1 * self.apply_kernel(np.atleast_2d(z_new)) + np.dot(var.T, var)
-        return mu, -sigma, K
+        #theta_opt = self.optimize(z, y)
+        K = self.apply_kernel(z, a=1.15)
+        K[np.diag_indices_from(K)] += np.var(y, axis=1)
+        L = np.linalg.cholesky(K)
+        alpha = np.linalg.solve(L.T, np.linalg.solve(L, y))
+
+        # mean
+        z_star = self.apply_kernel(z_new, z)
+        mu = z_star.dot(alpha)
+        # variance
+        v = np.linalg.solve(L, z_star.T)
+        sigma = self.apply_kernel(z_new, z_new) - np.dot(v.T, v)
+
+        sigma = np.sqrt(sigma)
+        return mu, sigma, K
 
     def policy(self, state, t, dt):
         tic = time.perf_counter()
@@ -277,11 +288,46 @@ class MPCWithGPR(Controller):
             xk  = np.atleast_2d(self.priors)[1:,:]
             linear_xk = np.dot(xk1[:,:4], self.A) + np.dot(np.atleast_2d(xk1[:,4]).T, self.B.T)
 
-            y = linear_xk - xk[:,:4]
-            z = xk1
+            y = linear_xk - xk[:,:4] # M x n_d
+            z = xk1 # M x n_z
     
-            self.pred_mu, self.pred_sig, self.K = self.make_prediction(z, y, np.atleast_2d(list(state) + [self.prior_action]))
+            # 10th state ahead
+            n = 0
+            state10 = np.atleast_2d(state)
+            ahead_n = 1
+            ahead = lambda s: np.dot(s, self.A)
+            while n < ahead_n:
+                state10 = ahead(state10)
+                n += 1
 
+
+            self.pred_mu, self.pred_sig, self.K = self.make_prediction(z, y, state10, self.prior_action)
+            
+            '''
+            ##### CVX ########
+            s = cp.Variable(shape=(self.T + 1, 4))
+            u = cp.Variable(shape=(self.T, 1))
+            cost = 0
+            constr = []
+            #### condition priors
+            # theta_opt = self.optimize(z, y)
+            # K = self.apply_kernel(z, a=1)
+            # K[np.diag_indices_from(K)] += np.var(y, axis=1) # M x M
+            # J = np.dot(np.linalg.inv(K), y) # M x n_d
+            for k in range(self.T):
+                lin = self.A @ s[k,:] + self.B @ u[k,:]
+                constr.append(s[k + 1, :] == lin)
+                constr.append(s[0,:] == state)
+                constr.append(cp.norm(u[k,:]) <= 100)
+                        
+            cost += cp.sum_squares(s[:,2])
+            problem = cp.Problem(cp.Minimize(cost), constraints=constr)
+            problem.solve(verbose=False)
+            print(problem.objective.value)
+            action = u[0,0].value
+            ##### END CVX ########
+            '''
+            action = 0
             # write predictions
             self.l_pred_state = np.dot(np.atleast_2d(state), self.A)
             self.nl_pred_state = self.l_pred_state - self.pred_mu
@@ -291,7 +337,8 @@ class MPCWithGPR(Controller):
             self.z_points = z[:,:4]
             self.y_points = y
         
-        action = np.sin(np.pi * t)
+        else:
+            action=0
 
         self.prior_action = action
         to_append = list(state) + [action]
