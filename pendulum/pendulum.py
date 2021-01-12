@@ -21,8 +21,6 @@ plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
 plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
 plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
-
-
 ############## PENDULUM #############
 
 class Pendulum(object):
@@ -141,6 +139,14 @@ class Simulation(object):
             'total momentum': [],
             'forces' : [],
             'control action' : [],
+            'mu_x': [],
+            'mu_xd': [],
+            'mu_t': [],
+            'mu_td': [],
+            'sigma_x': [],
+            'sigma_xd': [],
+            'sigma_t': [],
+            'sigma_td': [],
             'nl_pred_x' : [],
             'nl_pred_xd' : [],
             'nl_pred_t' : [],
@@ -149,10 +155,14 @@ class Simulation(object):
             'nl_error_xd' : [],
             'nl_error_t' : [],
             'nl_error_td' : [],
-            'nl_sig_x' : [],
-            'nl_sig_xd' : [],
-            'nl_sig_t' : [],
-            'nl_sig_td' : [],
+            'conf_lower_x' : [],
+            'conf_lower_xd' : [],
+            'conf_lower_t' : [],
+            'conf_lower_td' : [],
+            'conf_upper_x' : [],
+            'conf_upper_xd' : [],
+            'conf_upper_t' : [],
+            'conf_upper_td' : [],
             'l_pred_x' : [],
             'l_pred_xd' : [],
             'l_pred_t' : [],
@@ -193,7 +203,7 @@ class Simulation(object):
                     controller.update_plot(figure)
             
             # write data
-            self.write_data_timestep(x_k, t_k, u_k, action, controller.l_pred_x_k, controller.l_err_x_k, controller.nl_pred_x_k, controller.nl_err_x_k, controller.pred_sig)
+            self.write_data_timestep(x_k, t_k, u_k, action, controller.l_pred_x_k, controller.l_err_x_k, controller.nl_pred_x_k, controller.nl_err_x_k, controller.pred_sig, controller.pred_mu)
 
             # add action to extern. force to get total force
             u_k += action
@@ -204,7 +214,7 @@ class Simulation(object):
             n += 1
         return pd.DataFrame(index = self.times, data = self.data)
     
-    def write_data_timestep(self, x_k, t_k, u_k, action, l_pred_x_k, l_err_x_k, nl_pred_x_k, nl_err_x_k, nl_sigma):
+    def write_data_timestep(self, x_k, t_k, u_k, action, l_pred_x_k, l_err_x_k, nl_pred_x_k, nl_err_x_k, sigma, mu):
         '''
         write recorded data for a single timestep
         '''
@@ -239,12 +249,26 @@ class Simulation(object):
         self.data['nl_error_xd'].append(nl_err_x_k[0,1])
         self.data['nl_error_t'].append(nl_err_x_k[0,2])
         self.data['nl_error_td'].append(nl_err_x_k[0,3])
-        
-        # sigma
-        self.data['nl_sig_x'].append(nl_sigma[0,0])
-        self.data['nl_sig_xd'].append(nl_sigma[0,0])
-        self.data['nl_sig_t'].append(nl_sigma[0,0])
-        self.data['nl_sig_td'].append(nl_sigma[0,0])
+        # mu
+        self.data['mu_x'].append(mu[0,0])
+        self.data['mu_xd'].append(mu[0,1])
+        self.data['mu_t'].append(mu[0,2])
+        self.data['mu_td'].append(mu[0,3])
+        self.data['sigma_x'].append(sigma[0,0])
+        self.data['sigma_xd'].append(sigma[0,1])
+        self.data['sigma_t'].append(sigma[0,2])
+        self.data['sigma_td'].append(sigma[0,3])
+
+
+
+        self.data['conf_lower_x'].append(mu[0,0] - sigma[0, 0])
+        self.data['conf_lower_xd'].append(mu[0,1] - sigma[0, 1])
+        self.data['conf_lower_t'].append(mu[0,2] - sigma[0, 2])
+        self.data['conf_lower_td'].append(mu[0,3] - sigma[0, 3])
+        self.data['conf_upper_x'].append(mu[0,0] + sigma[0, 0])
+        self.data['conf_upper_xd'].append(mu[0,1] + sigma[0, 1])
+        self.data['conf_upper_t'].append(mu[0,2] + sigma[0, 2])
+        self.data['conf_upper_td'].append(mu[0,3] + sigma[0, 3])
 
         # linear predictions & errors
         self.data['l_pred_x'].append(l_pred_x_k[0,0])
@@ -444,74 +468,62 @@ class Visualizer(object):
 
 
     def display_plots(self):
+        '''
         fig = plt.figure(figsize=(7.5, 10), tight_layout=True)
-        gs = GridSpec(6, 2, figure=fig)
+        gs = GridSpec(6, 1, figure=fig)
         labels = [r'$x$', r'$\dot{x}$', r'$\theta$', r'$\dot{\theta}$']
         lss = ['-', ':', '--', '-.']
         lcs = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red']
 
         # errors
-        ax_states1 = fig.add_subplot(gs[0,0])
-        ax_states1.set_title('States')
-        ax_states1.plot(self.data['x'], ls=lss[0], c=lcs[0], label=labels[0])
-        ax_states1.plot(self.data['theta'], ls=lss[0], c=lcs[1], label=labels[1])
-        ax_states1.plot(self.data['xdot'], ls=lss[0], c=lcs[2], label=labels[2])    
-        ax_states1.plot(self.data['thetadot'], ls=lss[0], c=lcs[3], label=labels[3])
-        ax_states1.set_ylabel('Magnitude (m, rad)')
-        ax_states1.legend(loc=2)
-        ax_forces1 = fig.add_subplot(gs[1,0], sharex=ax_states1)
-        ax_forces1.set_title('Forces & Control Actions')
-        ax_forces1.plot(self.data['control action'],  ls=lss[0], c=lcs[0],  label='control action')
-        ax_forces1.plot(self.data['forces'],  ls=lss[1], c=lcs[0], label='external force')
-        ax_forces1.set_ylabel('Force applied (N)')
-        ax_forces1.legend(loc=2)
-        ax_errorx = fig.add_subplot(gs[2,0], sharex=ax_states1)
+        ax_states = fig.add_subplot(gs[0,0])
+        ax_states.set_title('States')
+        ax_states.plot(self.data['x'], ls=lss[0], c=lcs[0], label=labels[0])
+        ax_states.plot(self.data['theta'], ls=lss[0], c=lcs[1], label=labels[1])
+        ax_states.plot(self.data['xdot'], ls=lss[0], c=lcs[2], label=labels[2])    
+        ax_states.plot(self.data['thetadot'], ls=lss[0], c=lcs[3], label=labels[3])
+        ax_states.set_ylabel('Magnitude (m, rad)')
+        ax_states.legend(loc=2)
+        ax_forces = fig.add_subplot(gs[1,0], sharex=ax_states)
+        ax_forces.set_title('Forces & Control Actions')
+        ax_forces.plot(self.data['control action'],  ls=lss[0], c=lcs[0],  label='control action')
+        ax_forces.plot(self.data['forces'],  ls=lss[1], c=lcs[0], label='external force')
+        ax_forces.set_ylabel('Force applied (N)')
+        ax_forces.legend(loc=2)
+        ax_errorx = fig.add_subplot(gs[2,0], sharex=ax_states)
         ax_errorx.set_title("Error")
         ax_errorx.plot(self.data['l_error_x'], ls=lss[0], c=lcs[0], label=('l err: ' + labels[0]))
         ax_errorx.plot(self.data['nl_error_x'], ls=lss[1], c=lcs[0], label=('nl err: ' + labels[0]))
+        ax_errorx.fill_between(self.data.index, self.data['conf_upper_x'], self.data['conf_lower_x'])
         ax_errorx.legend(loc=2)
-        ax_errorxd = fig.add_subplot(gs[3,0], sharex=ax_states1)
+        ax_errorxd = fig.add_subplot(gs[3,0], sharex=ax_states)
         ax_errorxd.plot(self.data['l_error_xd'], ls=lss[0], c=lcs[1], label=('l err: ' + labels[1]))
         ax_errorxd.plot(self.data['nl_error_xd'], ls=lss[1], c=lcs[1], label=('nl err: ' + labels[1]))
         ax_errorxd.legend(loc=2)
-        ax_errort = fig.add_subplot(gs[4,0], sharex=ax_states1)
+        ax_errort = fig.add_subplot(gs[4,0], sharex=ax_states)
         ax_errort.plot(self.data['l_error_t'], ls=lss[0], c=lcs[2], label=('l err: ' + labels[2]))
         ax_errort.plot(self.data['nl_error_t'], ls=lss[1], c=lcs[2], label=('nl err: ' + labels[2]))
         ax_errort.legend(loc=2)
-        ax_errortd = fig.add_subplot(gs[5,0], sharex=ax_states1)
+        ax_errortd = fig.add_subplot(gs[5,0], sharex=ax_states)
         ax_errortd.plot(self.data['l_error_td'],  ls=lss[0], c=lcs[3], label=('l err: ' + labels[3]))
         ax_errortd.plot(self.data['nl_error_td'],  ls=lss[1], c=lcs[3], label=('nl_err: ' + labels[3]))
         ax_errortd.legend(loc=2)
-        # uncertainties
-        ax_states2 = fig.add_subplot(gs[0,1])
-        ax_states2.set_title('States')
-        ax_states2.set_ylabel('Magnitude (m, rad)')
-        ax_states2.plot(self.data['x'], ls=lss[0], c=lcs[0], label=labels[0])
-        ax_states2.plot(self.data['theta'], ls=lss[0], c=lcs[1], label=labels[1])
-        ax_states2.plot(self.data['xdot'], ls=lss[0], c=lcs[2], label=labels[2])    
-        ax_states2.plot(self.data['thetadot'], ls=lss[0], c=lcs[3], label=labels[3])
-        ax_states2.legend(loc=2)
-        ax_forces2 = fig.add_subplot(gs[1,1], sharex=ax_states2)
-        ax_forces2.set_title('Forces & Control Actions')
-        ax_forces2.plot(self.data['control action'], ls=lss[0], c=lcs[0], label='control action')
-        ax_forces2.plot(self.data['forces'], ls=lss[1], c=lcs[0], label='external force')
-        
-        ax_forces2.set_ylabel('Force applied (N)')
-        ax_forces2.legend(loc=2)
-        ax_uncertx = fig.add_subplot(gs[2,1], sharex=ax_states2)
-        ax_uncertx.set_title("Uncertainty (" + r'$\sigma$)')
-        ax_uncertx.plot(self.data['nl_sig_x'], ls=lss[0], c=lcs[0], label=('sigma: ' + labels[0]))
-        ax_uncertx.legend(loc=2)
-        ax_uncertxd = fig.add_subplot(gs[3,1], sharex=ax_states2)
-        ax_uncertxd.plot(self.data['nl_sig_xd'], ls=lss[0], c=lcs[1], label=('sigma: ' + labels[1]))
-        ax_uncertxd.legend(loc=2)
-        ax_uncertt = fig.add_subplot(gs[4,1], sharex=ax_states2)
-        ax_uncertt.plot(self.data['nl_sig_t'], ls=lss[0], c=lcs[2], label=('sigma: ' + labels[2]))
-        ax_uncertt.legend(loc=2)
-        ax_uncerttd = fig.add_subplot(gs[5,1], sharex=ax_states2)
-        ax_uncerttd.plot(self.data['nl_sig_td'], ls=lss[0], c=lcs[3], label=('sigma: ' + labels[3]))
-        ax_uncerttd.legend(loc=2)
-
+        '''
+        fig = plt.figure()
+        state = fig.add_subplot(411)
+        state.plot(self.data['theta'])
+        forces = fig.add_subplot(412, sharex=state)
+        forces.plot(self.data['forces'])
+        forces.plot(self.data['control action'])
+        pred = fig.add_subplot(413, sharex=state)
+        pred.fill_between(self.data.index, self.data['conf_upper_t'], self.data['conf_lower_t'], facecolor='lightgray', alpha=0.5)
+        pred.plot(self.data['conf_upper_t'], ':')
+        pred.plot(self.data['conf_lower_t'], ':')
+        pred.plot(self.data['mu_t'])
+        errors = fig.add_subplot(414, sharex=state)
+        errors.plot(self.data['l_error_t'])
+        errors.plot(self.data['nl_error_t'])
+        errors.fill_between(self.data.index, self.data['sigma_t'], facecolor='lightgray')
         plt.show()
 
 
@@ -519,13 +531,13 @@ if __name__ == "__main__":
    
     # period
     dt = 0.001
-    time = 8
+    time = 12
     # frequency
     dt_inv = 1/dt
 
     init = np.array([0,0,0,0])
     # M, m, l, g
-    pnd = Pendulum(3, 3, 2.4, 9.81, x_0=init)
+    pnd = Pendulum(3, 1, 2, 9.81, x_0=init)
     
     # control action every n timesteps
     every = 10
@@ -557,7 +569,9 @@ if __name__ == "__main__":
         noise)
     ctrl2 = controller.MPCWithGPR(
         pnd, 
-        dt)
+        dt,
+        window=7,
+        every=5)
 
     data = sim.simulate(
         ctrl2)
@@ -565,8 +579,8 @@ if __name__ == "__main__":
     plot = Visualizer(
         data,
         pnd,
-        frameskip = 10,
+        frameskip = 30,
     )
 
-    # plot.display_viz()
+    plot.display_viz()
     plot.display_plots()

@@ -216,9 +216,11 @@ class MPCWithGPR(Controller):
     def ll_loss(self, z, y, theta):
         K = self.apply_kernel(z, a=theta)
         K[np.diag_indices_from(K)] += np.var(y, axis=1)
-        a = -0.5 * y.T @ np.linalg.inv(K) @ y
-        b = -0.5 * np.log(np.trace(K))
-        c = -0.5 * K.shape[0] * np.log(np.pi * 2)
+        L = np.linalg.cholesky(K)
+        alpha = np.linalg.solve(L.T, np.linalg.solve(L, y))
+        a = -0.5 * np.dot(y.T, alpha)
+        b = -0.5 * np.log(np.trace(L))
+        c = -0.5 * L.shape[0] * np.log(np.pi * 2)
         ll = a + b + c
         return ll.sum()
     
@@ -249,25 +251,22 @@ class MPCWithGPR(Controller):
         mu = np.zeros((1,np.shape(y)[1]))
         sigma = np.zeros((1,np.shape(y)[1]))
         z_new = np.empty((1,5))
-
         z_new[:, :4] = np.asarray(x)
         z_new[:, 4] = np.asarray(u)
 
-        #theta_opt = self.optimize(z, y)
-        K = self.apply_kernel(z, a=1.15)
-        K[np.diag_indices_from(K)] += np.var(y, axis=1)
-        L = np.linalg.cholesky(K)
-        alpha = np.linalg.solve(L.T, np.linalg.solve(L, y))
-
-        # mean
-        z_star = self.apply_kernel(z_new, z)
-        mu = z_star.dot(alpha)
-        # variance
-        v = np.linalg.solve(L, z_star.T)
-        sigma = self.apply_kernel(z_new, z_new) - np.dot(v.T, v)
-
-        sigma = np.sqrt(sigma)
-        return mu, sigma, K
+        for a in range(y.shape[1]):
+            theta = self.optimize(z, np.atleast_2d(y[:,a]))
+            Ka = self.apply_kernel(z, a=theta)
+            Ka[np.diag_indices_from(Ka)] += np.var(y[:,a])
+            La = np.linalg.cholesky(Ka)
+            alpha = np.linalg.solve(La.T, np.linalg.solve(La,y[:,a]))
+            # mean
+            z_star = self.apply_kernel(z_new, z)
+            mu[0,a] = z_star.dot(alpha)
+            # variance
+            v = np.linalg.solve(La, z_star.T)
+            sigma[0,a] = self.apply_kernel(z_new, z_new) - np.dot(v.T, v)
+        return mu, sigma
 
     def policy(self, state, t, dt):
         tic = time.perf_counter()
@@ -301,7 +300,7 @@ class MPCWithGPR(Controller):
                 n += 1
 
 
-            self.pred_mu, self.pred_sig, self.K = self.make_prediction(z, y, state10, self.prior_action)
+            self.pred_mu, self.pred_sig = self.make_prediction(z, y, state10, self.prior_action)
             
             '''
             ##### CVX ########
@@ -387,10 +386,6 @@ class MPCWithGPR(Controller):
         ax4.set_xlabel('k ' + ss_labels[3])
         ax4.set_ylabel('k+1 error in ' + ss_labels[3])
         ax4.set_title('predicting k+1 error ' + ss_labels[3])
-
-        ax5 = fig.add_subplot(3,2,5)
-        ax5.matshow(self.K)
-        ax5.set_title('covariance matrix')
 
         plt.draw()
         plt.pause(0.01)
