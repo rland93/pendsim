@@ -6,15 +6,18 @@ import matplotlib.text as text
 from matplotlib.gridspec import GridSpec
 from matplotlib.animation import FuncAnimation
 import matplotlib.style
-matplotlib.style.use('seaborn-deep')
+matplotlib.style.use('seaborn-dark-palette')
+import pathos.pools
+from datetime import datetime
+import sys
+
 import controller
-
-SMALL_SIZE = 8
-MEDIUM_SIZE = 10
-BIGGER_SIZE = 12
-
+SMALL_SIZE = 9
+MEDIUM_SIZE = 11
+BIGGER_SIZE = 13
+plt.rcParams['font.family'] = 'serif'
 plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
-plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
+plt.rc('axes', titlesize=MEDIUM_SIZE)     # fontsize of the axes title
 plt.rc('axes', labelsize=SMALL_SIZE)    # fontsize of the x and y labels
 plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
 plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
@@ -127,10 +130,7 @@ class Simulation(object):
         self.control_every = control_every # control action interval, 1 = control every dt, 2 = control every other dt, etc.
         self.noise_scale = noise_scale # noise given to the state. can be scalar (equal noise) or len 4 array (noise given to each state)
         self.data={
-            'x': [], 
-            'xdot': [],
-            'theta':[],
-            'thetadot':[],
+            'state': [], 
             'PE':[], 
             'KE':[], 
             'E':[], 
@@ -139,38 +139,14 @@ class Simulation(object):
             'total momentum': [],
             'forces' : [],
             'control action' : [],
-            'mu_x': [],
-            'mu_xd': [],
-            'mu_t': [],
-            'mu_td': [],
-            'sigma_x': [],
-            'sigma_xd': [],
-            'sigma_t': [],
-            'sigma_td': [],
-            'nl_pred_x' : [],
-            'nl_pred_xd' : [],
-            'nl_pred_t' : [],
-            'nl_pred_td' : [],
-            'nl_error_x' : [],
-            'nl_error_xd' : [],
-            'nl_error_t' : [],
-            'nl_error_td' : [],
-            'conf_lower_x' : [],
-            'conf_lower_xd' : [],
-            'conf_lower_t' : [],
-            'conf_lower_td' : [],
-            'conf_upper_x' : [],
-            'conf_upper_xd' : [],
-            'conf_upper_t' : [],
-            'conf_upper_td' : [],
-            'l_pred_x' : [],
-            'l_pred_xd' : [],
-            'l_pred_t' : [],
-            'l_pred_td' : [],
-            'l_error_x' : [],
-            'l_error_xd' : [],
-            'l_error_t' : [],
-            'l_error_td' : [],
+            'mu': [],
+            'sigma': [],
+            'linear_pred': [],
+            'linear_error': [],
+            'nonlinear_pred': [],
+            'nonlinear_error': [],
+            'lower_conf' : [],
+            'upper_conf' : [],
             } # data returned by the sim
     
     def simulate(self, controller):
@@ -221,16 +197,21 @@ class Simulation(object):
         # times
         self.times.append(t_k)
         # states
-        self.data['x'].append(x_k[0])
-        self.data['xdot'].append(x_k[1])
-        self.data['theta'].append(x_k[2])
-        self.data['thetadot'].append(x_k[3])
-        # energies
+        self.data['state'].append(x_k)
+        self.data['linear_pred'].append(l_pred_x_k[0,:])
+        self.data['linear_error'].append(l_err_x_k[0,:])
+        self.data['nonlinear_pred'].append(nl_pred_x_k[0,:])
+        self.data['nonlinear_error'].append(nl_err_x_k[0,:])
+        self.data['mu'].append(mu[0,:])
+        self.data['sigma'].append(sigma[0,:])
+        self.data['lower_conf'].append(mu[0,:] - sigma[0,:])
+        self.data['upper_conf'].append(mu[0,:] + sigma[0,:])
+        # Energy
         ke, pe, e = self.pend.get_energy(x_k)
         self.data['KE'].append(ke)
         self.data['PE'].append(pe)
         self.data['E'].append(e)
-        # momentums
+        # Momentum
         p_cart, p_pend = self.pend.get_momentum(x_k)
         self.data['cart momentum'].append(p_cart) 
         self.data['pendulum momentum'].append(p_pend)
@@ -240,52 +221,13 @@ class Simulation(object):
         # controller action
         self.data['control action'].append(action)
 
-        # non-linear predictions & errors
-        self.data['nl_pred_x'].append(nl_pred_x_k[0,0])
-        self.data['nl_pred_xd'].append(nl_pred_x_k[0,1])
-        self.data['nl_pred_t'].append(nl_pred_x_k[0,2])
-        self.data['nl_pred_td'].append(nl_pred_x_k[0,3])
-        self.data['nl_error_x'].append(nl_err_x_k[0,0])
-        self.data['nl_error_xd'].append(nl_err_x_k[0,1])
-        self.data['nl_error_t'].append(nl_err_x_k[0,2])
-        self.data['nl_error_td'].append(nl_err_x_k[0,3])
-        # mu
-        self.data['mu_x'].append(mu[0,0])
-        self.data['mu_xd'].append(mu[0,1])
-        self.data['mu_t'].append(mu[0,2])
-        self.data['mu_td'].append(mu[0,3])
-        self.data['sigma_x'].append(sigma[0,0])
-        self.data['sigma_xd'].append(sigma[0,1])
-        self.data['sigma_t'].append(sigma[0,2])
-        self.data['sigma_td'].append(sigma[0,3])
-
-
-
-        self.data['conf_lower_x'].append(mu[0,0] - sigma[0, 0])
-        self.data['conf_lower_xd'].append(mu[0,1] - sigma[0, 1])
-        self.data['conf_lower_t'].append(mu[0,2] - sigma[0, 2])
-        self.data['conf_lower_td'].append(mu[0,3] - sigma[0, 3])
-        self.data['conf_upper_x'].append(mu[0,0] + sigma[0, 0])
-        self.data['conf_upper_xd'].append(mu[0,1] + sigma[0, 1])
-        self.data['conf_upper_t'].append(mu[0,2] + sigma[0, 2])
-        self.data['conf_upper_td'].append(mu[0,3] + sigma[0, 3])
-
-        # linear predictions & errors
-        self.data['l_pred_x'].append(l_pred_x_k[0,0])
-        self.data['l_pred_xd'].append(l_pred_x_k[0,1])
-        self.data['l_pred_t'].append(l_pred_x_k[0,2])
-        self.data['l_pred_td'].append(l_pred_x_k[0,3])
-        self.data['l_error_x'].append(l_err_x_k[0,0])
-        self.data['l_error_xd'].append(l_err_x_k[0,1])
-        self.data['l_error_t'].append(l_err_x_k[0,2])
-        self.data['l_error_td'].append(l_err_x_k[0,3])
-
-
     def wrap2pi(self, theta):
         '''
         wrap theta to the interval [0, 2pi]
         '''
         return np.arctan2(np.sin(theta), np.cos(theta))
+    
+
 
 ################ VISUALIZATION ####################
 
@@ -316,10 +258,67 @@ class Visualizer(object):
         # Pendulum Params
         self.p_rad = np.sqrt(self.pend.m) * self.disp_size/3
         # Display Params
-        self.xmax = self.data['x'].max() * 1.1
-        self.xmin = self.data['x'].min() * 1.1
+        self.xmax = np.stack(self.data['state'].values)[:,0].max() * 1.1
+        self.xmin = np.stack(self.data['state'].values)[:,0].min() * 1.1
         self.ymax = (self.pend.l + self.cart_h) * 1.3
         self.ymin = -self.pend.l * 1.3
+
+    def make_single_run_figure(self, data, path_prefix='./', save=False, show=False):
+        # get view of data from data as nparray
+        get_view = lambda key: np.stack(data[key].values)
+        labels = [r'$x$', r'$\dot{x}$', r'$\theta$', r'$\dot{\theta}$']
+        colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red']
+        x = data.index
+        for i in range(get_view('state').shape[1]):
+            # make plots
+            fig = plt.figure('pend_nl_'+str(i), figsize=(7.5, 10), tight_layout=True, facecolor='silver')
+            state = fig.add_subplot(411)
+            forces = fig.add_subplot(412, sharex=state)
+            pred = fig.add_subplot(413, sharex=state)
+            errors = fig.add_subplot(414, sharex=state)
+            # grids
+            state.grid(True,    which='both', color='lightgrey')
+            errors.grid(True,   which='both', color='lightgrey')
+            pred.grid(True,     which='both', color='lightgrey')
+            forces.grid(True,   which='both', color='lightgrey')
+            # titles
+            state.set_title('State: ' + labels[i])
+            forces.set_title('Forces')
+            pred.set_title(r'Predicted Divergence from Nominal Model ($\mu$)')
+            errors.set_title('Prediction Error')
+            # axis labels
+            state.set_ylabel(labels[i])
+            state.set_xlabel('time (s)')
+            forces.set_ylabel('Force (N)')
+            forces.set_xlabel('time (s)')
+            pred.set_ylabel(r'$\mu$')
+            pred.set_xlabel('time (s)')
+            errors.set_ylabel('Pred. error')
+            errors.set_xlabel('time (s)')
+            # data
+            state.plot(x, get_view('state')[:,i],           label=labels[i])
+            state.fill_between(x, get_view('state')[:,i],   alpha=0.06, facecolor='k')
+            forces.plot(x, get_view('forces'),              label='extern. force')
+            forces.plot(x, get_view('control action'),      label='actuation', linestyle='--')
+            pred.fill_between(x, get_view('upper_conf')[:,i], get_view('lower_conf')[:,i], alpha=0.2, facecolor='k', label=r'$\pm\sigma$')
+            pred.plot(x, get_view('mu')[:,i],               label=('divergence (' + labels[i] + ') predicted by GP'))
+            errors.plot(x, get_view('linear_error')[:,i],   label=('nominal (' + labels[i] + ')'), linestyle='--')
+            errors.plot(x, get_view('nonlinear_error')[:,i],label=('nominal + GP (' + labels[i] + ')'), linestyle='-')
+            errors.fill_between(x, get_view('sigma')[:,i], -1 * get_view('sigma')[:,i],  facecolor='k', label='uncertainty', alpha=0.2)
+
+            # legends
+            state.legend(framealpha=1, facecolor='inherit', loc='best')
+            errors.legend(framealpha=1, facecolor='inherit', loc='best')
+            pred.legend(framealpha=1, facecolor='inherit', loc='best')
+            forces.legend(framealpha=1, facecolor='inherit', loc='best')
+            if save:
+                fig.savefig(path_prefix + 'unmodeled_dyn_pend_nl_'+str(i)+'.png', dpi=200, facecolor='gainsboro')
+        if show:
+            plt.show()
+        # close out
+        plt.close(fig)
+
+
 
     def initialize_objects(self):
         '''
@@ -368,11 +367,12 @@ class Visualizer(object):
         ax.set_ylim(self.ymin, self.ymax)
     
         # matplotlib animate doesn't play nice with dataframes :(
-        anim_x = data['x'].values.tolist()[::self.skip]
-        anim_th = data['theta'].values.tolist()[::self.skip]
-        anim_f = data['forces'].values.tolist()[::self.skip]
-        anim_c = data['control action'].values.tolist()[::self.skip]
-        anim_t = data.index.values.tolist()[::self.skip]
+        anim_x = list(np.stack(self.data['state'].values)[:,0])[::self.skip]
+        anim_th = list(np.stack(self.data['state'].values)[:,2])[::self.skip]
+        anim_f = list(np.stack(self.data['forces'].values)[:])[::self.skip]
+        anim_c = list(np.stack(self.data['control action'].values)[:])[::self.skip]
+        anim_t = self.data.index.values.tolist()[::self.skip]
+
         n_frames = len(anim_t)
         # Initialize objects
         cart, mass, line, ext_force, ctrl_force, ground, angle_text, x_text, time_text = self.initialize_objects()
@@ -466,121 +466,108 @@ class Visualizer(object):
             obj.set_linewidth(0)
             obj.set_visible(False)
 
+class simRunner(object):
+    def __init__(self, pend_params, ctrl_params, sim_params):
+        self.pend_params = pend_params
+        self.ctrl_params = ctrl_params
+        self.sim_params = sim_params
 
-    def display_plots(self):
+    def run_once(self, run_consts):
+        pend_const, sim_const, ctrl_const = run_consts
+        '''Run the sim one time'''
+        # Pend parameters
+        ########################################
+        M = pend_const['M']
+        m = pend_const['m']
+        l = pend_const['l']
+        g = pend_const['g']
+        init = pend_const['init']
+        pendulum = Pendulum(M, m, l, g, x_0=init, cfric=0.0075, pfric=0.0075)
+
+        # Force
+        ########################################
+        if sim_const['force']:
+            force = sim_const['force']
+        else:
+            force = lambda t: 0
+        
+        # Enter Values
+        ########################################
+        sim = Simulation(
+            pendulum,
+            sim_const['dt'],
+            sim_const['simtime'],
+            force,
+            sim_const['every'],
+            sim_const['noise']
+        )
+        ctrl = controller.MPCWithGPR(
+            pendulum,
+            sim_const['dt'],
+            ctrl_const['window'],
+            sim_const['every']
+        )
+        # Run Simulation
+        ########################################
+        print('.', end='')
+        sys.stdout.flush()
+        return sim.simulate(ctrl)
+
+    def set_params(self):
+        '''Set the parameters of a single simulation run. This is used
+        to construct parameters from random values specified
+
+        [extended_summary]
+
+        Returns
+        -------
+        [type]
+            [description]
         '''
-        fig = plt.figure(figsize=(7.5, 10), tight_layout=True)
-        gs = GridSpec(6, 1, figure=fig)
-        labels = [r'$x$', r'$\dot{x}$', r'$\theta$', r'$\dot{\theta}$']
-        lss = ['-', ':', '--', '-.']
-        lcs = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red']
+        #
+        ########################################
 
-        # errors
-        ax_states = fig.add_subplot(gs[0,0])
-        ax_states.set_title('States')
-        ax_states.plot(self.data['x'], ls=lss[0], c=lcs[0], label=labels[0])
-        ax_states.plot(self.data['theta'], ls=lss[0], c=lcs[1], label=labels[1])
-        ax_states.plot(self.data['xdot'], ls=lss[0], c=lcs[2], label=labels[2])    
-        ax_states.plot(self.data['thetadot'], ls=lss[0], c=lcs[3], label=labels[3])
-        ax_states.set_ylabel('Magnitude (m, rad)')
-        ax_states.legend(loc=2)
-        ax_forces = fig.add_subplot(gs[1,0], sharex=ax_states)
-        ax_forces.set_title('Forces & Control Actions')
-        ax_forces.plot(self.data['control action'],  ls=lss[0], c=lcs[0],  label='control action')
-        ax_forces.plot(self.data['forces'],  ls=lss[1], c=lcs[0], label='external force')
-        ax_forces.set_ylabel('Force applied (N)')
-        ax_forces.legend(loc=2)
-        ax_errorx = fig.add_subplot(gs[2,0], sharex=ax_states)
-        ax_errorx.set_title("Error")
-        ax_errorx.plot(self.data['l_error_x'], ls=lss[0], c=lcs[0], label=('l err: ' + labels[0]))
-        ax_errorx.plot(self.data['nl_error_x'], ls=lss[1], c=lcs[0], label=('nl err: ' + labels[0]))
-        ax_errorx.fill_between(self.data.index, self.data['conf_upper_x'], self.data['conf_lower_x'])
-        ax_errorx.legend(loc=2)
-        ax_errorxd = fig.add_subplot(gs[3,0], sharex=ax_states)
-        ax_errorxd.plot(self.data['l_error_xd'], ls=lss[0], c=lcs[1], label=('l err: ' + labels[1]))
-        ax_errorxd.plot(self.data['nl_error_xd'], ls=lss[1], c=lcs[1], label=('nl err: ' + labels[1]))
-        ax_errorxd.legend(loc=2)
-        ax_errort = fig.add_subplot(gs[4,0], sharex=ax_states)
-        ax_errort.plot(self.data['l_error_t'], ls=lss[0], c=lcs[2], label=('l err: ' + labels[2]))
-        ax_errort.plot(self.data['nl_error_t'], ls=lss[1], c=lcs[2], label=('nl err: ' + labels[2]))
-        ax_errort.legend(loc=2)
-        ax_errortd = fig.add_subplot(gs[5,0], sharex=ax_states)
-        ax_errortd.plot(self.data['l_error_td'],  ls=lss[0], c=lcs[3], label=('l err: ' + labels[3]))
-        ax_errortd.plot(self.data['nl_error_td'],  ls=lss[1], c=lcs[3], label=('nl_err: ' + labels[3]))
-        ax_errortd.legend(loc=2)
-        '''
-        fig = plt.figure()
-        state = fig.add_subplot(411)
-        state.plot(self.data['theta'])
-        forces = fig.add_subplot(412, sharex=state)
-        forces.plot(self.data['forces'])
-        forces.plot(self.data['control action'])
-        pred = fig.add_subplot(413, sharex=state)
-        pred.fill_between(self.data.index, self.data['conf_upper_t'], self.data['conf_lower_t'], facecolor='lightgray', alpha=0.5)
-        pred.plot(self.data['conf_upper_t'], ':')
-        pred.plot(self.data['conf_lower_t'], ':')
-        pred.plot(self.data['mu_t'])
-        errors = fig.add_subplot(414, sharex=state)
-        errors.plot(self.data['l_error_t'])
-        errors.plot(self.data['nl_error_t'])
-        errors.fill_between(self.data.index, self.data['sigma_t'], facecolor='lightgray')
-        plt.show()
 
+
+
+        pend = {
+            'M' : 5,
+            'm' : 2,
+            'l' : 4,
+            'g' : 9.81 ,
+            'init' : np.array([0,0,0,0]),
+        }
+        sim = {
+            'dt' : 0.001,
+            'simtime' : 0.3,
+            'force' : lambda x: 50 * np.cos(2*x) * np.exp(-.02*(x-5)**4),
+            'every' : 10,
+            'noise' : 0,
+        }
+        ctrl = {
+            'window' : 10,
+        }
+        return pend, sim, ctrl
+
+
+    def run_many(self, runs):
+        paramlist = []
+        for run in range(runs):
+            paramlist.append(self.set_params())
+        
+        p = pathos.pools.ProcessPool()
+        print('simulating {}')
+        tic = datetime.now()
+        results = p.map(self.run_once, paramlist)
+        toc = datetime.now()
+        print('finished in {}'.format(toc - tic))
+        return results
+        
 
 if __name__ == "__main__":
-   
-    # period
-    dt = 0.001
-    time = 12
-    # frequency
-    dt_inv = 1/dt
-
-    init = np.array([0,0,0,0])
-    # M, m, l, g
-    pnd = Pendulum(3, 1, 2, 9.81, x_0=init)
-    
-    # control action every n timesteps
-    every = 10
-
-    # ctrl action is .01
-    # 100 -> 1 second
-
-    # forces: (magnitude, start time, duration)
-    # f_eqn = lambda x: 30 * np.cos(x)
-    # f_ind = np.linspace(0, time, int(time*dt_inv))
-
-    # starts = [round(m*dt, 3) for m in list(range(f_ind.shape[0]))]
-    # mags = [f_eqn(x) for x in starts]
-    # durations = [dt for m in list(range(f_ind.shape[0]))]
-
-    # forces = list(zip(mags, starts, durations))
-
-    forces = lambda x: 30 * np.cos(4*x) * np.exp(-0.5 * (x-4)**2)
-
-    # measurement noise
-    noise=0
-
-    sim = Simulation(
-        pnd, 
-        dt, 
-        time, 
-        forces,
-        every,
-        noise)
-    ctrl2 = controller.MPCWithGPR(
-        pnd, 
-        dt,
-        window=7,
-        every=5)
-
-    data = sim.simulate(
-        ctrl2)
-
-    plot = Visualizer(
-        data,
-        pnd,
-        frameskip = 30,
-    )
-
-    plot.display_viz()
-    plot.display_plots()
+    sr = simRunner()
+    # plt.switch_backend('agg')
+    for r, results in enumerate(sr.run_many(4)):
+        plt.switch_backend('agg')
+        viz = Visualizer(results, Pendulum(2, 1, 2, 10))
+        viz.make_single_run_figure(results, path_prefix=('./test/' + f'{r+1:0>3}' + ' '), save=True)

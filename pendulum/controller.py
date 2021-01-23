@@ -9,6 +9,7 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 import sklearn.gaussian_process
 import time
 
+
 class Controller(object):
     '''
     Class template for pendulum controller
@@ -97,14 +98,13 @@ class MPCController(Controller):
         cost += 1e4*cp.sum_squares(u[0,self.T-1])
         constr += [x[:, 0] == state]
         problem = cp.Problem(cp.Minimize(cost), constraints=constr)
-        problem.solve(verbose=True, solver='ECOS')
+        problem.solve(verbose=False, solver='ECOS')
         action = u[0,0].value
 
         # dump estimate info
         self.planned_state = x[:,:].value
         self.planned_u = u[0,:].value
 
-        print('cost: {}, u: {}, theta: {}'.format(cost.value,round(u[0,0].value,4),round(x[2,0].value,4)))
         # print('x: {}'.format(x[:,:].value))
         return action       
 
@@ -144,27 +144,18 @@ class MPCWithGPR(Controller):
         # prior observations
         self.M = window
         self.T = future
-
-        self.integrator = 0
-
         self.pend = pend
         self.plotting = plotting
-
         self.l_pred_x_k = np.zeros((1,4))
         self.l_err_x_k = np.zeros((1,4))
         self.nl_pred_x_k = np.zeros((1,4))
         self.nl_err_x_k = np.zeros((1,4))
-
         self.pred_mu = np.zeros((1,4))
         self.pred_sig = np.zeros((1,4))
-
         self.l_pred_state = np.zeros((1,4))
         self.nl_pred_state = np.zeros((1,4))
-    
         self.have_pred = False
-
         self.prior_action = 0
-
         self.z_current = np.zeros((1, 5))
         self.z_points = np.zeros((self.M,5))
         self.y_points = np.zeros((self.M,4))
@@ -173,19 +164,12 @@ class MPCWithGPR(Controller):
         self.priors = deque()
         self.x_k1 = np.empty(5)
         self.K = np.zeros((np.size(self.M),np.size(self.M)))
-        
-
-        # alter parameters to produce a (very) inaccurate linearized model
-        newL = pend.l#  + np.random.random_sample()
-        newm = pend.m#  + np.random.random_sample()
-        newM = pend.M#  + np.random.random_sample()
-        newg = pend.g#  + np.random.random_sample()
-
+    
         A = np.array([
             [0, 1, 0, 0],
-            [0, 0, (newg * newm)/newM, 0],
+            [0, 0, (pend.g * pend.m)/pend.M, 0],
             [0, 0, 0, 1],
-            [0, 0, newg/newL + newg * newm/(newL*newM), 0]])
+            [0, 0, pend.g/pend.l + pend.g * pend.m/(pend.l*pend.m), 0]])
         B = np.array([
             [0], 
             [1/pend.M], 
@@ -196,26 +180,25 @@ class MPCWithGPR(Controller):
         sys_disc = cont2discrete((A,B,C,D), dt * every, method='zoh')
         self.A = sys_disc[0]
         self.B = sys_disc[1]
-
         self.t_priors = []
         self.x_priors = []
         self.u_priors = []
         self.tick = 0
 
-    def apply_kernel(self, x1, x2=None, a=1):
+    def apply_kernel(self, x1, x2=None, l=1, sigma=1):
         if x2 is None:
-            diff = spatial.distance.pdist(x1/a, metric='sqeuclidean')
-            gram = np.exp(diff/2 * -1)
+            diff = spatial.distance.pdist(x1, metric='sqeuclidean')
+            gram = np.exp(diff/l * -0.5)
             gram = spatial.distance.squareform(gram)
             np.fill_diagonal(gram, 1)
         else:
-            diff = spatial.distance.cdist(x1/a, x2/a, metric='sqeuclidean')
-            gram = np.exp(diff/2 * -1)
+            diff = spatial.distance.cdist(x1, x2, metric='sqeuclidean')
+            gram = np.exp(diff/l * - 0.5)
         return gram
 
     def ll_loss(self, z, y, theta):
         K = self.apply_kernel(z, a=theta)
-        K[np.diag_indices_from(K)] += np.var(y, axis=1)
+        K[np.diag_indices_from(K)] += np.var(y, axis=1) + 1e-8
         L = np.linalg.cholesky(K)
         alpha = np.linalg.solve(L.T, np.linalg.solve(L, y))
         a = -0.5 * np.dot(y.T, alpha)
@@ -225,15 +208,15 @@ class MPCWithGPR(Controller):
         return ll.sum()
     
     def optimize(self, z, y):
-        theta = 2
+        theta = 1
         def obj_func(theta, z, y):
             return -self.ll_loss(z, y, theta)
-        
+
         results = optimize.minimize(
             obj_func,
             theta,
             (z, y),
-            method='Nelder-Mead',
+            method='L-BFGS-B',
             options={'disp': True}
         )
         print('\ttheta={}'.format(results['x']))
@@ -254,79 +237,43 @@ class MPCWithGPR(Controller):
         z_new[:, :4] = np.asarray(x)
         z_new[:, 4] = np.asarray(u)
 
+        l = 1
+        s = 10
+        K = self.apply_kernel(z, l=l, sigma=s)
+        K[np.diag_indices_from(K)] += np.var(y, axis=1) + 1e-9
+        L = np.linalg.cholesky(K)
+
         for a in range(y.shape[1]):
-            theta = self.optimize(z, np.atleast_2d(y[:,a]))
-            Ka = self.apply_kernel(z, a=theta)
-            Ka[np.diag_indices_from(Ka)] += np.var(y[:,a])
-            La = np.linalg.cholesky(Ka)
-            alpha = np.linalg.solve(La.T, np.linalg.solve(La,y[:,a]))
+            alpha = np.linalg.solve(L.T, np.linalg.solve(L, y[:,a]))
             # mean
-            z_star = self.apply_kernel(z_new, z)
+            z_star = self.apply_kernel(z_new, z, l=l, sigma=s)
             mu[0,a] = z_star.dot(alpha)
             # variance
-            v = np.linalg.solve(La, z_star.T)
-            sigma[0,a] = self.apply_kernel(z_new, z_new) - np.dot(v.T, v)
+            v = np.linalg.solve(L, z_star.T)
+            sigma[0,a] = self.apply_kernel(z_new, z_new, l=l, sigma=s) - np.dot(v.T, v)
+        # sigma = np.sqrt(sigma)
         return mu, sigma
 
     def policy(self, state, t, dt):
-        tic = time.perf_counter()
-        print('Control Action: ')
         if self.tick > self.M +1:
             self.priors.popleft()
 
             # record predictions
             if self.have_pred == True:
                 self.l_pred_x_k = np.atleast_2d(self.l_pred_state)
-                self.l_err_x_k = np.abs(np.atleast_2d(state - self.l_pred_state))
+                self.l_err_x_k = np.atleast_2d(state - self.l_pred_state)
                 self.nl_pred_x_k = np.atleast_2d(self.nl_pred_state)
-                self.nl_err_x_k = np.abs(np.atleast_2d(state - self.nl_pred_state))
-
+                self.nl_err_x_k = np.atleast_2d(state - self.nl_pred_state)
 
             # first val = most recent
             xk1 = np.atleast_2d(self.priors)[:-1,:]
             xk  = np.atleast_2d(self.priors)[1:,:]
             linear_xk = np.dot(xk1[:,:4], self.A) + np.dot(np.atleast_2d(xk1[:,4]).T, self.B.T)
-
             y = linear_xk - xk[:,:4] # M x n_d
             z = xk1 # M x n_z
-    
-            # 10th state ahead
-            n = 0
-            state10 = np.atleast_2d(state)
-            ahead_n = 1
-            ahead = lambda s: np.dot(s, self.A)
-            while n < ahead_n:
-                state10 = ahead(state10)
-                n += 1
 
-
-            self.pred_mu, self.pred_sig = self.make_prediction(z, y, state10, self.prior_action)
+            self.pred_mu, self.pred_sig = self.make_prediction(z, y, state, self.prior_action)
             
-            '''
-            ##### CVX ########
-            s = cp.Variable(shape=(self.T + 1, 4))
-            u = cp.Variable(shape=(self.T, 1))
-            cost = 0
-            constr = []
-            #### condition priors
-            # theta_opt = self.optimize(z, y)
-            # K = self.apply_kernel(z, a=1)
-            # K[np.diag_indices_from(K)] += np.var(y, axis=1) # M x M
-            # J = np.dot(np.linalg.inv(K), y) # M x n_d
-            for k in range(self.T):
-                lin = self.A @ s[k,:] + self.B @ u[k,:]
-                constr.append(s[k + 1, :] == lin)
-                constr.append(s[0,:] == state)
-                constr.append(cp.norm(u[k,:]) <= 100)
-                        
-            cost += cp.sum_squares(s[:,2])
-            problem = cp.Problem(cp.Minimize(cost), constraints=constr)
-            problem.solve(verbose=False)
-            print(problem.objective.value)
-            action = u[0,0].value
-            ##### END CVX ########
-            '''
-            action = 0
             # write predictions
             self.l_pred_state = np.dot(np.atleast_2d(state), self.A)
             self.nl_pred_state = self.l_pred_state - self.pred_mu
@@ -337,14 +284,12 @@ class MPCWithGPR(Controller):
             self.y_points = y
         
         else:
-            action=0
-
+            pass # action=0
+        action = 0
         self.prior_action = action
         to_append = list(state) + [action]
         self.priors.append(to_append)
         self.tick += 1
-        print('\taction={}'.format(action))
-        print('\tcompleted in {}'.format(time.perf_counter() - tic))
         return action
  
 
