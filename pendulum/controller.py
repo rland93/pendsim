@@ -140,7 +140,7 @@ class NoController(Controller):
         return 0
 
 class MPCWithGPR(Controller):
-    def __init__(self, pend, dt, measure_n=10, window=8, every=5):
+    def __init__(self, pend, dt, measure_n=10, window=8):
         # prior observations
         self.M = window
         self.pend = pend
@@ -165,7 +165,7 @@ class MPCWithGPR(Controller):
             [1/(pend.M * pend.l)]])
         C = np.zeros((1, A.shape[0]))
         D = np.zeros((1, 1))
-        sys_disc = cont2discrete((A,B,C,D), dt * every, method='zoh')
+        sys_disc = cont2discrete((A,B,C,D), dt, method='zoh')
         self.A = sys_disc[0]
         self.B = sys_disc[1]
         self.tick = 0

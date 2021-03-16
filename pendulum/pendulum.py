@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import scipy.integrate
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.text as text
@@ -12,6 +13,7 @@ import pathos.pools
 from datetime import datetime
 import sys
 import controller
+from viz import Visualizer
 
 SMALL_SIZE = 9
 MEDIUM_SIZE = 11
@@ -49,53 +51,32 @@ class Pendulum(object):
         self.pfric = pfric
         self.x_0 = x_0
 
-    def calculate_xdot(self, x, u):
+    def pend_eqn(self, t, x):
         '''
-        Calculate xdot = f(x, u) where x is the state vector 
-        xdot is a vector [xdot, xddot, tdot, tddot] It's may
-        be a little bit confusing because xdot indicates either
-        the state vector or the cart absolute position/velo
-        depending on context.
+        Calculate xdot = f(x) where x is the vector
+        [x, xdot, t, tdot, u]
+             |
+        [xd, xdd, td, tdd, u]
         '''
-        # state =   [x, xdot, theta, thetadot]
-        sin_t = np.sin(x[2])
-        cos_t = np.cos(x[2])
-        # A^-1     2x2
-        A = np.linalg.inv(
-            np.array([
-            [self.M + self.m,       -self.m * self.l * cos_t],
-            [-cos_t,                self.l]
-            ], dtype='float')
-        )
-        # B  2 @ 1
-        B = np.array([
-            [-self.m*self.l*x[3]*x[3] * sin_t + u],
-            [self.g * sin_t]
-        ])
-        solution = A @ B
-
-        xd = x[1]
-        xdd = solution[0][0] - x[1] * self.cfric
+        g = self.g
+        M = self.M
+        m = self.m
+        l = self.l
+        u = x[4]
+        xd = x[1] * (1-self.cfric)
         td = x[3]
-        tdd = solution[1][0] - x[3] * self.pfric
+        sint = np.sin(x[2])
+        cost = np.cos(x[2])
+        xdd = (u + m*g*sint*cost - m*l*td*td*sint) / (M+m - m*cost*cost)
+        tdd = ( xdd*cost + g*sint ) / l
 
-        return np.array([xd, xdd, td, tdd])
+        return np.array([xd, xdd, td, tdd, u])
 
-    def update_rk4(self, x, u, dt):
-        '''
-        Update the pendulum state using the rk4 method
-        '''
-        k1 = self.calculate_xdot(x, u) * dt
-        k2_state = x + k1 * 0.5 * dt
-        k2 = self.calculate_xdot(k2_state, u)
-        k3_state = x + k2 * 0.5 * dt
-        k3 = self.calculate_xdot(k3_state, u)
-        k4_state = x + k3 * dt
-        k4 = self.calculate_xdot(k4_state, u)
-        state = x + 1/6 * (k1 + 2*k2 + 2*k3 + k4) * dt
-        # wrap pi
-        # state[2] = np.arctan2(np.sin(state[2]), np.cos(state[2]))
-        return state
+    def solve(self, pend_eqn, dt, state):
+        sol = scipy.integrate.solve_ivp(pend_eqn, (0, dt), state)
+        print(sol)
+        final_y = sol.y[:4, -1]
+        return final_y
 
     def get_energy(self, x):
         '''
@@ -122,12 +103,11 @@ class Simulation(object):
     The simulation object. Provide a pendulum, a timestep, a final time, and a list of 
     external forces.
     '''
-    def __init__(self, pend, dt, t_final, force, control_every, noise_scale):
+    def __init__(self, pend, dt, t_final, force, noise_scale):
         self.pend = pend # pendulum to be simulated
         self.dt = dt # time step
         self.t_final = t_final # end at or before this time
         self.force = force # forcing function
-        self.control_every = control_every # control action interval, 1 = control every dt, 2 = control every other dt, etc.
         self.noise_scale = noise_scale # noise given to the state. can be scalar (equal noise) or len 4 array (noise given to each state)
 
     def simulate(self, controller):
@@ -158,15 +138,14 @@ class Simulation(object):
         run_data['estimate window'] = []
         times = []
 
+        
         # step time
         while t_k <= self.t_final:
             # print('time={}, x_k={}'.format(round(t_k,3), x_k))
             # forces
             u_k = self.force(t_k)
 
-            # controller takes action every `control_every` steps
-            if n % self.control_every == 0:
-                action, data = controller.policy(x_k, t_k, self.dt)
+            action, data = controller.policy(x_k, t_k, self.dt)
             # write data returned by controller
             for key, val in data.items():
                 run_data[key].append(val.flatten())
@@ -189,8 +168,12 @@ class Simulation(object):
             # add action to extern. force to get total force
             u_k += action
 
+            solve_input = np.empty(dtype=float, shape=(5))
+            solve_input[:4] = x_k
+            solve_input[4] = u_k
+ 
             # update state, time
-            x_k = self.pend.update_rk4(x_k, u_k, self.dt)
+            x_k = self.pend.solve(self.pend.pend_eqn, self.dt, solve_input)
             t_k += self.dt
             n += 1
         
@@ -226,7 +209,6 @@ class simRunner(object):
             sim_const['dt'],
             sim_const['simtime'],
             force,
-            sim_const['every'],
             sim_const['noise']
         )
         ctrl = controller.MPCWithGPR(
@@ -234,7 +216,6 @@ class simRunner(object):
             sim_const['dt'],
             ctrl_const['measure_n'],
             ctrl_const['window'],
-            sim_const['every']
         )
         # Run Simulation
         ########################################
@@ -263,7 +244,6 @@ class simRunner(object):
                 'dt' : 0.001,
                 'simtime' : params['simtime'],
                 'force' : params['force'],
-                'every' : 10,
                 'noise' : 0,
             }
             ctrl = {
@@ -282,7 +262,6 @@ class simRunner(object):
                 'dt' : 0.001,
                 'simtime' : params['simtime'],
                 'force' : params['force'],
-                'every' : 10,
                 'noise' : 0
             }
             ctrl = {
@@ -329,33 +308,32 @@ class simRunner(object):
 
 
 def make_single_run_figure(data, path_prefix='./', save=False, show=False):
-    # get view of data from data as nparray
     x = data.index
-    print(x)
-    '''
-    get_view = lambda key: np.stack(data[key].values)
     labels = [r'$x$', r'$\dot{x}$', r'$\theta$', r'$\dot{\theta}$']
-    colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red']
-    x = data.index
-    for i in range(get_view('state').shape[1]):
-        # make plots
-        fig = plt.figure('pend_nl_'+str(i), figsize=(7.5, 10), tight_layout=True, facecolor='silver')
-        state = fig.add_subplot(411)
-        forces = fig.add_subplot(412, sharex=state)
-        pred = fig.add_subplot(413, sharex=state)
-        errors = fig.add_subplot(414, sharex=state)
-        # grids
+    
+
+    for i in data['state']:
+        fig = plt.figure(figsize=(7.5,10), tight_layout=True)
+        state = fig.add_subplot(611)
+        forces = fig.add_subplot(612, sharex=state)
+        pred = fig.add_subplot(613, sharex=state)
+        errors = fig.add_subplot(614, sharex=state)
+        momentum = fig.add_subplot(615, sharex=state)
+        energy = fig.add_subplot(616, sharex=state)
         state.grid(True,    which='both', color='lightgrey')
-        errors.grid(True,   which='both', color='lightgrey')
-        pred.grid(True,     which='both', color='lightgrey')
         forces.grid(True,   which='both', color='lightgrey')
+        pred.grid(True,     which='both', color='lightgrey')
+        errors.grid(True,   which='both', color='lightgrey')
+        momentum.grid(True, which='both', color='lightgrey')
+        energy.grid(True, which='both', color='lightgrey')
+
         # titles
-        state.set_title('State: ' + labels[i])
+        state.set_title('State: ' + str(i))
         forces.set_title('Forces')
         pred.set_title(r'Predicted Divergence from Nominal Model ($\mu$)')
         errors.set_title('Prediction Error')
-        # axis labels
-        state.set_ylabel(labels[i])
+        # x, y labels
+        state.set_ylabel(i)
         state.set_xlabel('time (s)')
         forces.set_ylabel('Force (N)')
         forces.set_xlabel('time (s)')
@@ -364,33 +342,103 @@ def make_single_run_figure(data, path_prefix='./', save=False, show=False):
         errors.set_ylabel('Pred. error')
         errors.set_xlabel('time (s)')
         # data
-        state.plot(x, get_view('state')[:,i],           label=labels[i])
-        state.fill_between(x, get_view('state')[:,i],   alpha=0.06, facecolor='k')
-        forces.plot(x, get_view('forces'),              label='extern. force')
-        forces.plot(x, get_view('control action'),      label='actuation', linestyle='--')
-        pred.fill_between(x, get_view('upper_conf')[:,i], get_view('lower_conf')[:,i], alpha=0.2, facecolor='k', label=r'$\pm\sigma$')
-        pred.plot(x, get_view('mu')[:,i],               label=('divergence (' + labels[i] + ') predicted by GP'))
-        errors.plot(x, get_view('linear_error')[:,i],   label=('nominal (' + labels[i] + ')'), linestyle='--')
-        errors.plot(x, get_view('nonlinear_error')[:,i],label=('nominal + GP (' + labels[i] + ')'), linestyle='-')
-        errors.fill_between(x, get_view('sigma')[:,i], -1 * get_view('sigma')[:,i],  facecolor='k', label='uncertainty', alpha=0.2)
+
+        state.plot(data.index, data[('state', i)], label = i)
+        forces.plot(data.index, data['forces'], label='extern. force')
+        forces.plot(data.index, data['control action'], label='actuation', linestyle='--')
+        pred.plot(data.index, data[('mu', i)])
+        errors.plot(data.index, data[('ldiff', i)], label='ldiff')
+        errors.plot(data.index, data[('nldiff', i)], label='nldiff')
+        momentum.plot(data.index, data['cart momentum'], label='cart momentum')
+        momentum.plot(data.index, data['pend momentum'], label='pend momentum')
+        momentum.plot(data.index, data['total momentum'], label='total momentum')
+        energy.plot(data.index, data['KE'], label='KE')
+        energy.plot(data.index, data['PE'], label='PE')
+        energy.plot(data.index, data['energy'], label='Energy')
 
         # legends
         state.legend(framealpha=1, facecolor='inherit', loc='best')
+        forces.legend(framealpha=1, facecolor='inherit', loc='best')
         errors.legend(framealpha=1, facecolor='inherit', loc='best')
         pred.legend(framealpha=1, facecolor='inherit', loc='best')
-        forces.legend(framealpha=1, facecolor='inherit', loc='best')
-        if save:
-            fig.savefig(path_prefix + 'unmodeled_dyn_pend_nl_'+str(i)+'.png', dpi=200, facecolor='gainsboro')
-    if show:
-        plt.show()
-    # close out
-    plt.close(fig)
-    '''
+        momentum.legend(framealpha=1, facecolor='inherit', loc='best')
+        energy.legend(framealpha=1, facecolor='inherit', loc='best')
 
-
+    plt.show()
 
 
 if __name__ == '__main__':
+    a = 0.161
+    b = 1.0
+    c = 10
+    pend_const = {
+        'M' : 4,
+        'm' : 2,
+        'l' : 3,
+        'g' : 9.81,
+        'init' : np.array([0,0,0.1,0])
+    }
+    sim_const = {
+        'dt' : 0.001,
+        'simtime' : 10,
+        'force' : lambda t: c * 1/abs(a*np.pi) * np.exp( -((t-b)/a)**2 ),
+        'noise' : 0
+    }
+    ctrl_const = {
+        'window' : 6,
+        'measure_n' : 6,
+    }
+
+
+    sr = simRunner()
+    run_consts = pend_const, sim_const, ctrl_const
+    results = sr.run_once(run_consts)
+    print(results.columns)
+    labels = ['x','xd','theta','thetad']        
+    data = pd.concat(
+        [
+            pd.DataFrame.from_records(np.abs(results['ldiff'].values), columns=labels, index=results.index),
+            pd.DataFrame.from_records(np.abs(results['nldiff'].values), columns=labels, index=results.index),
+            pd.DataFrame.from_records(np.abs(results['ldiff_n'].values), columns=labels, index=results.index),
+            pd.DataFrame.from_records(np.abs(results['nldiff_n'].values), columns=labels, index=results.index),
+            pd.DataFrame.from_records(results['state'].values, columns=labels, index=results.index),
+            pd.DataFrame.from_records(results['mu'].values, columns=labels, index=results.index),
+            pd.DataFrame.from_records(results['sigma'].values, columns=labels, index=results.index),
+            pd.DataFrame(results['estimate window'].values, columns=['window'], index=results.index),
+            pd.DataFrame(results['forces'].values, columns=['forces'], index=results.index),
+            pd.DataFrame(results['KE'].values, columns=['KE'], index=results.index),
+            pd.DataFrame(results['PE'].values, columns=['PE'], index=results.index),
+            pd.DataFrame(results['Energy'].values, columns=['energy'], index=results.index),
+            pd.DataFrame(results['cart momentum'].values, columns=['cart momentum'], index=results.index),
+            pd.DataFrame(results['pend momentum'].values, columns=['pendulum momentum'], index=results.index),
+            pd.DataFrame(results['total momentum'].values, columns=['total momentum'], index=results.index),
+            pd.DataFrame(results['control action'].values, columns=['control action'], index=results.index),
+        ],
+        axis=1,
+        keys = [
+            'ldiff', 
+            'nldiff', 
+            'ldiff_n', 
+            'nldiff_n', 
+            'state', 
+            'mu', 
+            'sigma', 
+            'window',
+            'forces',
+            'KE',
+            'PE',
+            'energy',
+            'cart momentum',
+            'pend momentum',
+            'total momentum',
+            'control action',]
+    )
+    make_single_run_figure(data, show=True)
+
+    viz = Visualizer(data, Pendulum(M=pend_const['M'], m=pend_const['m'], l=pend_const['l'], g=pend_const['g']), frameskip=20)
+    viz.display_viz()
+
+    '''
     sr = simRunner()
     params = {
         # pendulum
@@ -411,7 +459,7 @@ if __name__ == '__main__':
         'window' : 5,
         'measure_n': 4
     }
-    results = sr.run_many(64, params, 1)
+    results = sr.run_many(1, params, 1)
     labels = ['x','xd','theta','thetad']        
     data = pd.concat(
         [
@@ -471,3 +519,4 @@ if __name__ == '__main__':
         ax.set_ylabel('Value')
         ax.set_xlabel('State Var')
     plt.show()
+    '''

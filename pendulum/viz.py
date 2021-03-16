@@ -1,4 +1,9 @@
- 
+import numpy as np
+from matplotlib import patches, text
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+
+
 ################ VISUALIZATION ####################
 
 class Visualizer(object):
@@ -32,61 +37,6 @@ class Visualizer(object):
         self.xmin = np.stack(self.data['state'].values)[:,0].min() * 1.1
         self.ymax = (self.pend.l + self.cart_h) * 1.3
         self.ymin = -self.pend.l * 1.3
-
-    def make_single_run_figure(self, data, path_prefix='./', save=False, show=False):
-        # get view of data from data as nparray
-        get_view = lambda key: np.stack(data[key].values)
-        labels = [r'$x$', r'$\dot{x}$', r'$\theta$', r'$\dot{\theta}$']
-        colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red']
-        x = data.index
-        for i in range(get_view('state').shape[1]):
-            # make plots
-            fig = plt.figure('pend_nl_'+str(i), figsize=(7.5, 10), tight_layout=True, facecolor='silver')
-            state = fig.add_subplot(411)
-            forces = fig.add_subplot(412, sharex=state)
-            pred = fig.add_subplot(413, sharex=state)
-            errors = fig.add_subplot(414, sharex=state)
-            # grids
-            state.grid(True,    which='both', color='lightgrey')
-            errors.grid(True,   which='both', color='lightgrey')
-            pred.grid(True,     which='both', color='lightgrey')
-            forces.grid(True,   which='both', color='lightgrey')
-            # titles
-            state.set_title('State: ' + labels[i])
-            forces.set_title('Forces')
-            pred.set_title(r'Predicted Divergence from Nominal Model ($\mu$)')
-            errors.set_title('Prediction Error')
-            # axis labels
-            state.set_ylabel(labels[i])
-            state.set_xlabel('time (s)')
-            forces.set_ylabel('Force (N)')
-            forces.set_xlabel('time (s)')
-            pred.set_ylabel(r'$\mu$')
-            pred.set_xlabel('time (s)')
-            errors.set_ylabel('Pred. error')
-            errors.set_xlabel('time (s)')
-            # data
-            state.plot(x, get_view('state')[:,i],           label=labels[i])
-            state.fill_between(x, get_view('state')[:,i],   alpha=0.06, facecolor='k')
-            forces.plot(x, get_view('forces'),              label='extern. force')
-            forces.plot(x, get_view('control action'),      label='actuation', linestyle='--')
-            pred.fill_between(x, get_view('upper_conf')[:,i], get_view('lower_conf')[:,i], alpha=0.2, facecolor='k', label=r'$\pm\sigma$')
-            pred.plot(x, get_view('mu')[:,i],               label=('divergence (' + labels[i] + ') predicted by GP'))
-            errors.plot(x, get_view('linear_error')[:,i],   label=('nominal (' + labels[i] + ')'), linestyle='--')
-            errors.plot(x, get_view('nonlinear_error')[:,i],label=('nominal + GP (' + labels[i] + ')'), linestyle='-')
-            errors.fill_between(x, get_view('sigma')[:,i], -1 * get_view('sigma')[:,i],  facecolor='k', label='uncertainty', alpha=0.2)
-
-            # legends
-            state.legend(framealpha=1, facecolor='inherit', loc='best')
-            errors.legend(framealpha=1, facecolor='inherit', loc='best')
-            pred.legend(framealpha=1, facecolor='inherit', loc='best')
-            forces.legend(framealpha=1, facecolor='inherit', loc='best')
-            if save:
-                fig.savefig(path_prefix + 'unmodeled_dyn_pend_nl_'+str(i)+'.png', dpi=200, facecolor='gainsboro')
-        if show:
-            plt.show()
-        # close out
-        plt.close(fig)
 
     def initialize_objects(self):
         '''
