@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from sklearn.gaussian_process import GaussianProcessRegressor
 import sklearn.gaussian_process
 import time
-
+import pendulum
 
 class Controller(object):
     '''
@@ -198,22 +198,19 @@ class MPCWithGPR(Controller):
                 nlpred_n = np.dot(nlpred_n, self.A) - mu
 
             # write data
-            data['mu'] = mu
-            data['sigma'] = sig
-            data['lpred'] = lpred
-            data['nlpred'] = nlpred
-            data['lpred_n'] = lpred_n
-            data['nlpred_n'] = nlpred_n
-            data['zeros'] = np.zeros(np.atleast_2d(state).shape)
+            labels = ['x', 'xd', 't', 'td']
+            level1_keys = ['mu', 'sigma', 'lpred', 'nlpred', 'lpred_n', 'nlpred_n']
+            values = [mu, sig, lpred, nlpred, lpred_n, nlpred_n]
+            for l1, v in zip(level1_keys, values):
+                key, val = pendulum.array_to_kv(data, l1, labels, v)
         else:
-            stateshape = np.atleast_2d(state).shape
-            data['mu'] = np.zeros(stateshape)
-            data['sigma'] = np.zeros(stateshape)
-            data['lpred'] = np.zeros(stateshape)
-            data['nlpred'] = np.zeros(stateshape)
-            data['lpred_n'] = np.zeros(stateshape)
-            data['nlpred_n'] = np.zeros(stateshape)
-            data['zeros'] = np.zeros(np.atleast_2d(state).shape)
+            # write data
+            labels = ['x', 'xd', 't', 'td']
+            level1_keys = ['mu', 'sigma', 'lpred', 'nlpred', 'lpred_n', 'nlpred_n']
+            values = [np.empty(state.shape[0]) for k in level1_keys]
+            for l1, v in zip(level1_keys, values):
+                key, val = pendulum.array_to_kv(l1, labels, v)
+                data[key] = val
 
         # no action for now
         action = 0
@@ -303,14 +300,28 @@ class MPCWithGPR(Controller):
         
 class BangBang(Controller):
     def __init__(self, setpoint, magnitude):
-        self.setpoint = setpoint
+        '''Simple "BangBang" style controller:
+        if it's on turn it off
+        if it's off turn it on
+
+        Parameters
+        ----------
+        setpoint : float
+            angle, radians
+        magnitude : float
+            system gain
+        threshold :  float
+            max angle
+        '''
+        self.set_theta = set_theta
         self.magnitude = magnitude
+        self.threshold = threshold
     
     def policy(self, state, t):
         error = state[2] - self.setpoint
-        if error > 0.1 and state[2] < np.pi/4:
+        if error > 0.1 and state[2] < self.threshold:
             return self.magnitude
-        elif error < -0.1 and state[2] > -np.pi/4:
+        elif error < -0.1 and state[2] > -self.threshold:
             return -self.magnitude
         else:
             return 0
