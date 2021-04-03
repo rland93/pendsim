@@ -1,4 +1,4 @@
-from pendulum import Pendulum, Simulation
+from pendulum import Pendulum, Simulation, make_single_run_figure
 from controller import MPCWithGPR
 import matplotlib.pyplot as plt
 import numpy as np
@@ -8,14 +8,14 @@ import random
 
 
 init = np.array([0,0,-0.1,0])
-dt = 0.5
-force = lambda t: np.pi/2 - np.arctan( 10 * (t - 4.0)**2.0 )
+dt = 0.1
+force = lambda t: np.pi/2 - np.arctan( 10 * (t - 1)**2.0 )
 
 
 
-sim = Simulation(dt, 4, force, solve_args={'method' : 'RK45', 'dense_output' : True})
+sim = Simulation(dt, 10, force, solve_args={'method' : 'RK45', 'dense_output' : True})
 pends, controllers = [], []
-for _ in range(16):
+for _ in range(2):
     m = random.uniform(3,5)
     M = random.uniform(4,8)
     l = random.uniform(2,5)
@@ -24,6 +24,10 @@ for _ in range(16):
     pends.append(p)
     controllers.append(c)
 results = sim.simulate_many(pends, controllers)
+for run in results.groupby(level=0):
+    print(run[1].droplevel(0).columns)
+    make_single_run_figure(run[1].droplevel(0))
+plt.show()
 
 
 

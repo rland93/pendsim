@@ -1,6 +1,7 @@
 import numpy as np
 import math
 import pandas as pd
+from collections import defaultdict
 import scipy.integrate
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -26,7 +27,7 @@ plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
 plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
 plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
 plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
-
+plt.rc('image', cmap='gray')
 ############## PENDULUM #############
 class Pendulum(object):
     '''Inverted pendulum on a cart object
@@ -177,27 +178,11 @@ class Simulation(object):
     def simulate(self, pendulum, controller):
         # initialize
         t_k, y_k, n = 0, pendulum.y_0, 0
-
-        # run the policy once to see what data it returns, then populate run_data with that
-        _, sample = controller.policy(y_k, t_k, self.dt)
-        run_data = {}
-        for k, v in sample.items():
-            run_data[k] = []
-        run_data['state'] = []
-        run_data['forces'] = []
-        run_data['cart momentum'] = []
-        run_data['pend momentum'] = []
-        run_data['total momentum'] = []
-        run_data['KE'] = []
-        run_data['PE'] = []
-        run_data['Energy'] = []
-        run_data['control action'] = []
-        run_data['estimate window'] = []
-        times = []
-
-        
         # step time
+        datas = defaultdict(list)
+        times = []
         while t_k <= self.t_final:
+            data = {}
             # print('time={}, x_k={}'.format(round(t_k,3), x_k))
             # forces
             u_k = self.force(t_k)
@@ -205,27 +190,26 @@ class Simulation(object):
             action, data = controller.policy(y_k, t_k, self.dt)
             # write data returned by controller
             for key, val in data.items():
-                run_data[key].append(val)
+                data[key] = val
                 
             # write data returned by simulation
-            times.append(t_k)
-            statelabel, statev = array_to_kv('state', ['x','xd','t','td'], y_k)
-            run_data[k
+            for key, val in array_to_kv('state', ['x','xd','t','td'], y_k).items():
+                data[key] = val
 
-
-
-            run_data['state'].append(y_k)
-            run_data['forces'].append(u_k)
+            data[('forces','forces')] = u_k
             p_cart, p_pend, p_total = pendulum.get_momentum(y_k)
-            run_data['cart momentum'].append(p_cart)
-            run_data['pend momentum'].append(p_pend)
-            run_data['total momentum'].append(p_total)
+            data[('cart momentum','cart momentum')] = p_cart
+            data[('pend momentum','pend momentum')] = p_pend
+            data[('total momentum','total momentum')] = p_total
             ke, pe, e = pendulum.get_energy(y_k)
-            run_data['KE'].append(ke)
-            run_data['PE'].append(pe)
-            run_data['Energy'].append(e)
-            run_data['control action'].append(action)
-            run_data['estimate window'].append(controller.M)
+            data[('KE','KE')] = ke
+            data[('PE','PE')] = pe
+            data[('Energy','Energy')] = e
+            data[('control action','control action')] = action
+            # build index of times
+            for k, v in data.items():
+                datas[k].append(v)
+            times.append(t_k)
 
             # add action to extern. force to get total force
             u_k += action
@@ -234,39 +218,41 @@ class Simulation(object):
             y_k, _ = pendulum.solve(self.dt, y_k, u_k, self.solve_args)
             t_k += self.dt
             n += 1
+            '''
             if n % int(1/self.dt) == 0:
                 print(str(round(t_k)), end=' ', flush=True)
-        
-        return pd.DataFrame(data=run_data, index=times)
+            '''
+        return pd.DataFrame(datas, index=times)
     
     def simulate_many(self, pendulums, controllers):
-        '''Run a simulation over many separate pendulums
+        '''run a simulation over `n` pendulums & controllers
 
         Parameters
         ----------
-        pendulums : list of Pendulum
-            list of pendulums
+        pendulums : list, length `n`
+            the list of pendulums
+        controllers : list, length `n`
+            the list of controllers
 
         Returns
         -------
         pandas DataFrame
-            the results
+            The results. Axis 0 (rows) is a multi-index, with level 0 being the run
+            index, and level 1 being each run time. Axis 1 (cols) is each parameter,
+            as a multi-index.
         '''
         pool = Pool(16)
         print('Simulating {} runs.'.format(len(pendulums)))
         tic = datetime.now()
 
         results = pool.starmap(self.simulate, zip(pendulums, controllers))
-
         toc = datetime.now()
         print('finished in {}'.format(toc - tic))
-        print(pd.MultiIndex.from_tuples(results[0].index))
-        
-        # results = pd.concat(results, axis=0, levels=0)
+        return pd.concat(results, axis=0, keys=list(range(len(results))))
 
-        return results
 
 def array_to_kv(level1_key, level2_keys, array):
+    data={}
     if array.shape[0] != len(level2_keys):
         raise(ValueError('Level 2 keys are not same length as array: {} vs {}'.format(level2_keys, array.shape[0])))
     for n, name in enumerate(level2_keys):
@@ -293,10 +279,9 @@ def make_single_run_figure(data, show=True, save=False):
     labelmapper = {
         'x' : r'$x$',
         'xd' : r'$\dot{x}$',
-        'theta' : r'$\theta$',
-        'thetad' : r'$\dot{\theta}}$',
+        't' : r'$\theta$',
+        'td' : r'$\dot{\theta}}$',
     }
-
     x = data.index
     for i in data['state']:
         fig = plt.figure(tight_layout=False, facecolor='lightgrey')
@@ -310,7 +295,6 @@ def make_single_run_figure(data, show=True, save=False):
         forces.grid(True,   which='both', color='lightgrey')
         pred.grid(True,     which='both', color='lightgrey')
         errors.grid(True,   which='both', color='lightgrey')
-        momentum.grid(True, which='both', color='lightgrey')
         energy.grid(True,   which='both', color='lightgrey')
 
         # titles
@@ -329,14 +313,9 @@ def make_single_run_figure(data, show=True, save=False):
         forces.plot(data.index, data['forces'], label='extern. force')
         forces.plot(data.index, data['control action'], label='actuation', linestyle='--')
         pred.plot(data.index, data[('mu', i)], label=labelmapper[i] + str(', ') + r'$\mu$')
-        errors.plot(data.index, data[('ldiff', i)], label=labelmapper[i] + str(', linear'))
-        errors.plot(data.index, data[('nldiff', i)], label=labelmapper[i] + str(', non-linear'))
-        momentum.plot(data.index, data['cart momentum'], label='cart momentum')
-        momentum.plot(data.index, data['pend momentum'], label='pend momentum')
-        momentum.plot(data.index, data['total momentum'], label='total momentum')
         energy.plot(data.index, data['KE'], label='KE')
         energy.plot(data.index, data['PE'], label='PE')
-        energy.plot(data.index, data['energy'], label='Energy')
+        energy.plot(data.index, data['Energy'], label='Energy')
 
         # legends
         state.legend(framealpha=1, facecolor='inherit', loc='best')

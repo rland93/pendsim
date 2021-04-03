@@ -201,16 +201,17 @@ class MPCWithGPR(Controller):
             labels = ['x', 'xd', 't', 'td']
             level1_keys = ['mu', 'sigma', 'lpred', 'nlpred', 'lpred_n', 'nlpred_n']
             values = [mu, sig, lpred, nlpred, lpred_n, nlpred_n]
-            for l1, v in zip(level1_keys, values):
-                key, val = pendulum.array_to_kv(data, l1, labels, v)
+            data = {}
+            for l1, val in zip(level1_keys, values):
+                data.update(pendulum.array_to_kv(l1, labels, np.squeeze(val)))
         else:
             # write data
             labels = ['x', 'xd', 't', 'td']
             level1_keys = ['mu', 'sigma', 'lpred', 'nlpred', 'lpred_n', 'nlpred_n']
             values = [np.empty(state.shape[0]) for k in level1_keys]
-            for l1, v in zip(level1_keys, values):
-                key, val = pendulum.array_to_kv(l1, labels, v)
-                data[key] = val
+            data = {}
+            for l1, val in zip(level1_keys, values):
+                data.update(pendulum.array_to_kv(l1, labels, val))
 
         # no action for now
         action = 0
