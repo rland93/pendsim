@@ -187,7 +187,22 @@ class Simulation(object):
             # forces
             u_k = self.force(t_k)
 
-            action, data = controller.policy(y_k, t_k, self.dt)
+            tic = datetime.now()
+            if t_k > 1:
+                xref = np.array([1,0,0,0])
+            else:
+                xref = np.array([2,0,0,0])
+            action, ctrldata = controller.policy(y_k, t_k, self.dt, xref)
+            print(
+                'action at {} took {}, theta={}, action={}'.format(
+                    str(round(t_k,2)).ljust(4,'0'),
+                    datetime.now() - tic,
+                    round(y_k[2], 2),
+                    round(action, 1),
+                )
+            )
+            data.update(ctrldata)
+
             # write data returned by controller
             for key, val in data.items():
                 data[key] = val

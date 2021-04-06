@@ -139,12 +139,55 @@ class NoController(Controller):
     def policy(self, state, t, dt):
         return 0
 
+class MPC(Controller):
+    def __init__(self, pend, dt):
+        self.T = 9
+        self.u_max = 100
+        self.A = np.array([ [0, 1, 0, 0], [0, 0, (pend.g * pend.m)/pend.M, 0],[0, 0, 0, 1], [0, 0, pend.g/pend.l + pend.g * pend.m/(pend.l*pend.m), 0]])
+        self.B = np.array([ [0], [1/pend.M], [0], [1/(pend.M * pend.l)]])
+        # C = np.zeros((1, A.shape[0]))
+        # D = np.zeros((1, 1))
+        # sys_disc = cont2discrete((A,B,C,D), dt, method='zoh')
+        # self.A = sys_disc[0]
+        # self.B = sys_disc[1]
+        self.costW = np.diag([10, 1, 0, 0])
+
+    def policy(self, state, t, dt, xref):
+        cost, constr = 0, []
+        x = cp.Variable((4, self.T + 1))
+        u = cp.Variable((1, self.T))
+        for t in range(self.T):
+            cost += cp.quad_form(x[:,t] - xref, self.costW)
+            constr.append(
+                x[:,t+1] == x[:,t] + \
+                    (dt*2) * (self.A@x[:,t] + self.B@u[:,t])
+            )
+            constr.extend([
+                x[:,0] == state,
+                cp.abs(u[:,t]) <= self.u_max,
+                cp.abs(x[2,self.T]) <= 0.000005,
+                cp.abs(x[3,self.T]) <= 1e-5,
+                cp.abs(x[1,:]) <= 0.2
+            ]
+            )
+        problem = cp.Problem(cp.Minimize(cost), constr)
+        problem.solve('ECOS')
+        action = u.value[0,0]
+        print(np.abs(state[0] - xref[0]))
+        data = {}
+        labels = ['x', 'xd', 't', 'td']
+        data.update(pendulum.array_to_kv('zeros', labels, np.zeros(len(labels)) ))
+        return action, data
+
+
 class MPCWithGPR(Controller):
     def __init__(self, pend, dt, measure_n=10, window=8):
         # prior observations
         self.M = window
         self.pend = pend
         self.measure_n = measure_n
+        self.T = 10
+        self.u_max = 300
 
         # GPR properties
         self.lenscale = 1
@@ -168,9 +211,10 @@ class MPCWithGPR(Controller):
         sys_disc = cont2discrete((A,B,C,D), dt, method='zoh')
         self.A = sys_disc[0]
         self.B = sys_disc[1]
+        self.W = np.diag([0, 0, 4, 0.1])
         self.tick = 0
 
-    def policy(self, state, t, dt):
+    def policy(self, state, t, dt, xref):
         data = {}
         if self.tick > self.M +1:
             # delete oldest from prior window
@@ -183,7 +227,84 @@ class MPCWithGPR(Controller):
             z = xk1 # M x n_z
             # create cov matrix
             L = self.create_prior_matr(z, y, self.lenscale)
-            # predict uncertainty
+            
+            x = cp.Variable((4, self.T+1))
+            # ctrl act
+            u = cp.Variable((1, self.T))
+            # mu
+            mu = []
+            constr = []
+            cost = 0
+            for t in range(self.T):
+                # for each output dimension
+                for a in range(y.shape[1]):
+                    
+                    # calcuate alpha
+                    alpha = np.linalg.solve(L.T, np.linalg.solve(L, y[:,a]))
+                    # find z star by applying kernel on z_new and z
+                    # where z_new is x[t,:] (the state at future time t)
+
+                    #diff = spatial.distance.cdist(z_new, z, metric='sqeuclidean')
+                    # diff = 
+                    # for rowi in z_new == 1
+                    #     for rowj in z == 8,
+                    #         find sqeuclid dist between 2 rows
+                    #     endfor
+                    # endfor
+                    # diff is a rowi by rowj matr of scalar distances
+                    
+                    # for example
+                    # z_new is 1x4
+                    # z is 5x4
+                    # diff is now
+                    # 1x5
+
+                    # diff = np.exp(diff/lenscale * - 0.5)
+                    # mu[0,a] = z_star.dot(alpha)
+                    # mean
+                    '''
+                    print('\talpha: {}'.format(alpha.shape))
+                    print('\tz[:, a]: {} = m x 1 (column vector)'.format(z[:, a].shape))
+                    print('\tx[a, t]: {} = scalar'.format(x[a, t].shape))
+                    print('\tz[:, a] - x[a, t]: {}'.format((z[:, a] - x[a, t]).shape))
+                    print('\tabs(z[:, a] - x[a, t]): {}'.format(cp.abs(z[:, a] - x[a, t]).shape))
+                    print(
+                        '\texp(abs(z[:, a] - x[a, t])): {}'.format(
+                        (cp.exp(cp.abs(z[:, a] - x[a, t])) @ alpha.T).shape
+                        )
+                    )
+                    print(
+                        '\tself.A * x[a,t]: {}'.format(
+                        (np.linalg.norm(self.A[:,a], ord=1) * x[a, t]).shape
+                        )
+                    )
+                    constr.append(
+                        x[a, t + 1] == np.sum(self.A[:,a]) * x[a,t] + \
+                            np.sum(self.B[a, 0]) * u[0, t]
+                        # cp.exp(cp.abs(z[:, a] - x[a, t])) @ alpha.T 
+                    )
+                    '''
+                # system model constraint
+                constr.append(
+                    x[:, t+1] == x[:,t] + \
+                        self.A[:,a] @ x[:,t] + \
+                        self.B @ u[:,t]
+                )
+                # max control action
+                constr += [cp.abs(u[:, t]) <= self.u_max]
+                cost += cp.quad_form(x[:,t+1] - xref, self.W)
+                cost += cp.sum_squares(u[:,t])
+            constr += [x[:, 0] == state]
+            problem = cp.Problem(cp.Minimize(cost), constraints=constr)
+            problem.solve(verbose=False)
+            print('cost: {}'.format(cost.value))
+            action = u[0,0].value
+
+
+            data = {}
+            labels = ['x', 'xd', 't', 'td']
+            data.update(pendulum.array_to_kv('zeros', labels, np.zeros(len(labels)) ))
+            '''
             mu, sig = self.make_prediction(L, self.lenscale, z, y, state, self.prior_action)
             # make linear, nonlinear predictions
             lpred = np.dot(np.atleast_2d(state), self.A)
@@ -204,7 +325,9 @@ class MPCWithGPR(Controller):
             data = {}
             for l1, val in zip(level1_keys, values):
                 data.update(pendulum.array_to_kv(l1, labels, np.squeeze(val)))
+            '''
         else:
+            '''
             # write data
             labels = ['x', 'xd', 't', 'td']
             level1_keys = ['mu', 'sigma', 'lpred', 'nlpred', 'lpred_n', 'nlpred_n']
@@ -212,9 +335,14 @@ class MPCWithGPR(Controller):
             data = {}
             for l1, val in zip(level1_keys, values):
                 data.update(pendulum.array_to_kv(l1, labels, val))
+            '''
+            data = {}
+            labels = ['x', 'xd', 't', 'td']
+            data.update(pendulum.array_to_kv('zeros', labels, np.zeros(len(labels)) ))
+            print(data)
+            action = 0
 
         # no action for now
-        action = 0
         # build prior window
         self.prior_action = action
         self.priors.append(list(state) + [action])
