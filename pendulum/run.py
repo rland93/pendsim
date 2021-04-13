@@ -8,18 +8,18 @@ import datetime
 import random
 
 
-init = np.array([0,0,-0.1,0])
+init = np.array([0,0,-0.2,0])
 dt = 0.01
-force = lambda t: 20 * 1/np.sqrt(np.pi)/0.1*np.exp(-((t-0.4)/0.1)**2.0)
+# force = lambda t: 20 * 1/np.sqrt(np.pi)/0.1*np.exp(-((t-0.4)/0.1)**2.0)
+force = lambda t: 0
 
-
-sim = Simulation(dt, 7, force, solve_args={'method' : 'RK45', 'dense_output' : True})
+sim = Simulation(dt, 7, force, solve_args={'method' : 'RK45', 'dense_output' : False})
 pends, controllers = [], []
 for _ in range(2):
     m = random.uniform(3,5)
     M = random.uniform(4,8)
     l = random.uniform(2,5)
-    p = Pendulum(M, m, l)
+    p = Pendulum(M, m, l, y_0=init)
     c = MPC(p, dt)
     pends.append(p)
     controllers.append(c)

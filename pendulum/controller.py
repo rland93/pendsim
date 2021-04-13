@@ -141,16 +141,14 @@ class NoController(Controller):
 
 class MPC(Controller):
     def __init__(self, pend, dt):
-        self.T = 9
+        self.T = 4
         self.u_max = 100
-        self.A = np.array([ [0, 1, 0, 0], [0, 0, (pend.g * pend.m)/pend.M, 0],[0, 0, 0, 1], [0, 0, pend.g/pend.l + pend.g * pend.m/(pend.l*pend.m), 0]])
-        self.B = np.array([ [0], [1/pend.M], [0], [1/(pend.M * pend.l)]])
-        # C = np.zeros((1, A.shape[0]))
-        # D = np.zeros((1, 1))
-        # sys_disc = cont2discrete((A,B,C,D), dt, method='zoh')
-        # self.A = sys_disc[0]
-        # self.B = sys_disc[1]
-        self.costW = np.diag([10, 1, 0, 0])
+        A = np.array([ [0, 1, 0, 0], [0, 0, (pend.g * pend.m)/pend.M, 0],[0, 0, 0, 1], [0, 0, pend.g/pend.l + pend.g * pend.m/(pend.l*pend.m), 0]])
+        B = np.array([ [0], [1/pend.M], [0], [1/(pend.M * pend.l)]])
+        C, D = np.zeros((1, A.shape[0])), np.zeros((1, 1))
+        sys_disc = cont2discrete((A,B,C,D), dt, method='zoh')
+        self.A, self.B = sys_disc[0], sys_disc[1]
+        self.costW = np.diag([0, 0, 1, 0.1])
 
     def policy(self, state, t, dt, xref):
         cost, constr = 0, []
@@ -158,22 +156,25 @@ class MPC(Controller):
         u = cp.Variable((1, self.T))
         for t in range(self.T):
             cost += cp.quad_form(x[:,t] - xref, self.costW)
-            constr.append(
-                x[:,t+1] == x[:,t] + \
-                    (dt*2) * (self.A@x[:,t] + self.B@u[:,t])
-            )
             constr.extend([
+                # model constraint
+                x[:,t+1] == x[:,t] + dt * (self.A @ x[:,t] + self.B @ u[:,t]),
+                # initial state constraint
                 x[:,0] == state,
-                cp.abs(u[:,t]) <= self.u_max,
-                cp.abs(x[2,self.T]) <= 0.000005,
-                cp.abs(x[3,self.T]) <= 1e-5,
-                cp.abs(x[1,:]) <= 0.2
-            ]
-            )
+                # maximum control actuation
+                cp.abs(u[0,t]) <= self.u_max
+            ])
         problem = cp.Problem(cp.Minimize(cost), constr)
-        problem.solve('ECOS')
+        problem.solve('ECOS', abstol=1e-3, feastol=1e-3, verbose=True)
+        print('\tcost: ', cost.value)
+        print('\t', x[:,t].value - xref)
+        print('\tu: ', np.squeeze(u.value)[0])
+        statediff = x[:,1].value - (self.A @ state + self.B @ u[:,0].value)
+        print('\tx: ', statediff)
+        print('\tx: ', np.dot(statediff, statediff))
+
+
         action = u.value[0,0]
-        print(np.abs(state[0] - xref[0]))
         data = {}
         labels = ['x', 'xd', 't', 'td']
         data.update(pendulum.array_to_kv('zeros', labels, np.zeros(len(labels)) ))

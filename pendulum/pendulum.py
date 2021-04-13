@@ -181,6 +181,8 @@ class Simulation(object):
         # step time
         datas = defaultdict(list)
         times = []
+
+        xref = lambda t_k: np.array([0.1*t_k, 0, 0, 0])
         while t_k <= self.t_final:
             data = {}
             # print('time={}, x_k={}'.format(round(t_k,3), x_k))
@@ -188,11 +190,8 @@ class Simulation(object):
             u_k = self.force(t_k)
 
             tic = datetime.now()
-            if t_k > 1:
-                xref = np.array([1,0,0,0])
-            else:
-                xref = np.array([2,0,0,0])
-            action, ctrldata = controller.policy(y_k, t_k, self.dt, xref)
+
+            action, ctrldata = controller.policy(y_k, t_k, self.dt, xref(t_k))
             print(
                 'action at {} took {}, theta={}, action={}'.format(
                     str(round(t_k,2)).ljust(4,'0'),
