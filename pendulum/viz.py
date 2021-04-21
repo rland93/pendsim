@@ -3,9 +3,6 @@ from matplotlib import patches, text, lines
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-
-################ VISUALIZATION ####################
-
 class Visualizer(object):
     def __init__(self, 
             data, 

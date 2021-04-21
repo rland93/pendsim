@@ -1,14 +1,11 @@
 import numpy as np
-from scipy import spatial
 import cvxpy as cp
-from collections import deque
 from scipy.signal import cont2discrete
-from scipy import optimize
+import scipy.spatial
 import matplotlib.pyplot as plt
-from sklearn.gaussian_process import GaussianProcessRegressor
-import sklearn.gaussian_process
 import time
-import pendulum
+from pendulum.utils import array_to_kv
+from collections import deque
 
 class Controller(object):
     '''
@@ -23,114 +20,104 @@ class Controller(object):
         
         Parameters
         ----------
-        state: (float, float, float float)
+        state: (:obj:`float`, :obj:`float`, :obj:`float` :obj:`float`)
             The current system state
         
         Returns
         -------
-        float
+        :obj:`float`
             The controller action, in force applied to the cart.
         '''
         raise NotImplementedError
 
- 
-
-class MPCController(Controller):
-    def __init__(self, pendulum, T, dt, u_max=1000, plotting=False):
-        self.pendulum = pendulum 
-        self.plotting = plotting
-        self.setpoint = 0
-        
-        # System A 
-        # nxn
-
-        A = np.array([
-            [0, 1, 0, 0],
-            [0, 0, (pendulum.g * pendulum.m)/pendulum.M, 0],
-            [0, 0, 0, 1],
-            [0, 0, pendulum.g/pendulum.l + pendulum.g * pendulum.m/(pendulum.l*pendulum.M), 0]
-        ])
-
-        # Input B
-        # n x p
-
-        B = np.array([
-            [0], 
-            [1/pendulum.M],
-            [0],
-            [1/pendulum.M*pendulum.l]
-            
-        ])
-
-        # Output C
-        # q x n
-        # 
-        # (blank for now)
-
-        C = np.zeros((1, A.shape[0]))
-
-        # Feedthrough D
-        # q x p
-        # 
-        # (blank for now)
-        
-        D = np.zeros((1, 1))
-
+class LQR(Controller):
+    def __init__(self, pend, dt, window):
+        self.w = window
+        A = pend.jacA
+        B = pend.jacB
+        C, D = np.zeros((1, A.shape[0])), np.zeros((1, 1))
         sys_disc = cont2discrete((A,B,C,D), dt, method='zoh')
-        self.A = sys_disc[0]
-        self.B = sys_disc[1]
-        
-        self.T = T
-        self.u_max = u_max
+        self.A, self.B = sys_disc[0], np.atleast_2d(sys_disc[1])
 
-        self.planned_u = []
-        self.planned_state = []
+    def policy(self, state, t, dt, xref=np.array([0,0,0,0]), plot=None):
+        quadform = lambda M, N: (M.T.dot(N) * M.T).sum(axis=1)
+        Q = np.diag([0,0.5,40,0])
+        R = np.atleast_2d([0.001])
+        P = [None] * (self.w+1)
+        P[self.w] = Q
 
-    def policy(self, state, t, dt):
-        x = cp.Variable((4, self.T+1))
-        u = cp.Variable((1, self.T))
-        cost = 0
+        for k in range(self.w, 0, -1):
+            c1 = quadform(self.A, P[k])
+            c2 = np.linalg.pinv(R + quadform(self.B, P[k]))
+            c3 = (self.A.T @ P[k] @ self.B) @ c2 @ (self.B.T @ P[k] @ self.A)
+            P[k-1] = c1 - c3
+
+        K = [None] * self.w
+        u = [None] * self.w
+        for i in range(self.w):
+            c1 = -np.linalg.pinv(R + quadform(self.B, P[k]))
+            c2 = self.B.T @ P[i+1] @ self.A
+            K[i] = c1 @ c2
+            u[i] = K[i] @ (state - np.array([0,0,0,0]))
+
+        action = float(np.squeeze(u[0]))
+        print('action = ' + str(action), sep='', end='\r')
+        data = {}
+        labels = ['x', 'xd', 't', 'td']
+        data.update(array_to_kv('zeros', labels, np.zeros(len(labels)) ))
+        return action, data
+ 
+class MPC(Controller):
+    def __init__(self, pend, dt, window):
+        self.T = window
+        self.u_max = 100
+        A = pend.jacA
+        B = pend.jacB
+        C, D = np.zeros((1, A.shape[0])), np.zeros((1, 1))
+        sys_disc = cont2discrete((A,B,C,D), dt, method='zoh')
+        self.A, self.B = sys_disc[0], sys_disc[1]
+        self.costW = np.diag([0, 0, 1, 0])
+
+    def policy(self, state, t, dt, xref=np.array([0,0,0,0]), plot=None):
         constr = []
+        x = cp.Variable((4, self.T + 1))
+        u = cp.Variable((1, self.T))
         for t in range(self.T):
-            constr.append(x[:, t + 1] == self.A @ x[:, t] + self.B @ u[:, t])
-            constr.append(cp.abs(u[:, t]) <= self.u_max)
-        cost += cp.sum_squares(x[2,self.T])
-        cost += 1e4*cp.sum_squares(u[0,self.T-1])
-        constr += [x[:, 0] == state]
-        problem = cp.Problem(cp.Minimize(cost), constraints=constr)
-        problem.solve(verbose=False, solver='ECOS')
-        action = u[0,0].value
+            cost = cp.quad_form(cp.abs(x[:,t+1] - xref), self.costW)
+            constr += [x[:, t+1] == x[:,t] + dt * (self.A @ x[:,t] + self.B @ u[:,t])]
+            constr += [x[:, 0] == state]
+            constr += [cp.abs(u[0,:]) <= self.u_max]
 
-        # dump estimate info
-        self.planned_state = x[:,:].value
-        self.planned_u = u[0,:].value
+        problem = cp.Problem(cp.Minimize(cost), constr)
+        problem.solve('ECOS', verbose=True)
+        if plot is not None:
+            fig, ax, lines = plot
+            ax.set_xlim((np.min(list(range(self.T+1))) - 0.5, np.max(list(range(self.T+1))) + 0.1))
+            for line in lines:
+                if line['type'] == 'plot':
+                    xdata = list(range(self.T+1))
+                    ydata = np.squeeze(x[line['index'],:].value)
+                    line['linesobj'].set_xdata(xdata)
+                    line['linesobj'].set_ydata(ydata)
 
-        # print('x: {}'.format(x[:,:].value))
-        return action       
+                elif line['type'] == 'hline':
+                    y = xref[line['index']]
+                    line['linesobj'].set_ydata([y])
+                
+                elif line['type'] == 'action':
+                    xdata = list(range(self.T))
+                    ydata = np.squeeze(u.value * 0.01)
+                    line['linesobj'].set_xdata(xdata)
+                    line['linesobj'].set_ydata(ydata)
+            ax.set_ylim((-3, 3))
+            fig.canvas.draw()
+            fig.canvas.flush_events()
 
-    def init_plot(self):
-        prediction = plt.figure()
-        return prediction
-
-    def update_plot(self, figure):
-        plt.clf()
-        ax0 = figure.add_subplot(211)
-        ax1 = figure.add_subplot(212)
-        # States
-        ax0.plot(self.planned_state[0], label=r'$x$')
-        ax0.plot(self.planned_state[1], label=r'$\dot{x}$') 
-        ax0.plot(self.planned_state[2], label=r'$\theta$')
-        ax0.plot(self.planned_state[3], label=r'$\dot{\theta}$')   
-        ax0.axhline(y = self.setpoint, color='k', drawstyle='steps', linestyle='dotted', label=r'set point')
-        ax0.set_ylabel("state")
-        ax0.legend()
-        # Control Actions
-        ax1.plot(self.planned_u, label=r'$u$')
-        ax1.set_ylabel("force")
-        ax1.legend()
-        plt.draw()
-        plt.pause(0.0001)
-
+        action = - u[0,0].value
+        data = {}
+        labels = ['x', 'xd', 't', 'td']
+        data.update(array_to_kv('zeros', labels, np.zeros(len(labels)) ))
+        return action, data
 
 class NoController(Controller):
     def __init__(self):
@@ -139,49 +126,7 @@ class NoController(Controller):
     def policy(self, state, t, dt):
         return 0
 
-class MPC(Controller):
-    def __init__(self, pend, dt):
-        self.T = 4
-        self.u_max = 100
-        A = np.array([ [0, 1, 0, 0], [0, 0, (pend.g * pend.m)/pend.M, 0],[0, 0, 0, 1], [0, 0, pend.g/pend.l + pend.g * pend.m/(pend.l*pend.m), 0]])
-        B = np.array([ [0], [1/pend.M], [0], [1/(pend.M * pend.l)]])
-        C, D = np.zeros((1, A.shape[0])), np.zeros((1, 1))
-        sys_disc = cont2discrete((A,B,C,D), dt, method='zoh')
-        self.A, self.B = sys_disc[0], sys_disc[1]
-        self.costW = np.diag([0, 0, 1, 0.1])
-
-    def policy(self, state, t, dt, xref):
-        cost, constr = 0, []
-        x = cp.Variable((4, self.T + 1))
-        u = cp.Variable((1, self.T))
-        for t in range(self.T):
-            cost += cp.quad_form(x[:,t] - xref, self.costW)
-            constr.extend([
-                # model constraint
-                x[:,t+1] == x[:,t] + dt * (self.A @ x[:,t] + self.B @ u[:,t]),
-                # initial state constraint
-                x[:,0] == state,
-                # maximum control actuation
-                cp.abs(u[0,t]) <= self.u_max
-            ])
-        problem = cp.Problem(cp.Minimize(cost), constr)
-        problem.solve('ECOS', abstol=1e-3, feastol=1e-3, verbose=True)
-        print('\tcost: ', cost.value)
-        print('\t', x[:,t].value - xref)
-        print('\tu: ', np.squeeze(u.value)[0])
-        statediff = x[:,1].value - (self.A @ state + self.B @ u[:,0].value)
-        print('\tx: ', statediff)
-        print('\tx: ', np.dot(statediff, statediff))
-
-
-        action = u.value[0,0]
-        data = {}
-        labels = ['x', 'xd', 't', 'td']
-        data.update(pendulum.array_to_kv('zeros', labels, np.zeros(len(labels)) ))
-        return action, data
-
-
-class MPCWithGPR(Controller):
+class MPC_GPR(Controller):
     def __init__(self, pend, dt, measure_n=10, window=8):
         # prior observations
         self.M = window
@@ -304,7 +249,7 @@ class MPCWithGPR(Controller):
 
             data = {}
             labels = ['x', 'xd', 't', 'td']
-            data.update(pendulum.array_to_kv('zeros', labels, np.zeros(len(labels)) ))
+            data.update(array_to_kv('zeros', labels, np.zeros(len(labels)) ))
             '''
             mu, sig = self.make_prediction(L, self.lenscale, z, y, state, self.prior_action)
             # make linear, nonlinear predictions
@@ -339,7 +284,7 @@ class MPCWithGPR(Controller):
             '''
             data = {}
             labels = ['x', 'xd', 't', 'td']
-            data.update(pendulum.array_to_kv('zeros', labels, np.zeros(len(labels)) ))
+            data.update(array_to_kv('zeros', labels, np.zeros(len(labels)) ))
             print(data)
             action = 0
 
@@ -436,11 +381,11 @@ class BangBang(Controller):
 
         Parameters
         ----------
-        setpoint : float
+        setpoint : :obj:`float`
             angle, radians
-        magnitude : float
+        magnitude : :obj:`float`
             system gain
-        threshold :  float
+        threshold : :obj:`float`
             max angle
         '''
         self.set_theta = set_theta
