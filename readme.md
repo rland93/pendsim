@@ -42,9 +42,6 @@ results = sim.simulate(pend, cont, plot=False)
 viz = Visualizer(results, pend, frameskip=1, draw_ghost=False, save=False)
 viz.display_viz()
 ```
-
-![Example](examplevideo.mp4)
-
 ![Example](https://user-images.githubusercontent.com/33564709/116198178-817dde80-a6ea-11eb-8cdf-e0c53c922416.mp4)
 
 
