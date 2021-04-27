@@ -1,20 +1,16 @@
-# Inverse Pendulum simulator and visualization
-Python 3 inverse pendulum simulator! The inverted pendulum on a cart is a common device used to explore control theory:
+# Inverse Pendulum Simulation
+A simple inverse-pendulum simulator.
 
-![Source: Wikipedia](pendulum-diagram.png)
+[Package Documentation](rland93.github.io/pendulum/)
 
-## Installation
-1. Clone repo
-2. Install dependencies:
+It includes implementations for controllers:
++ PID
++ Bang Bang
++ LQR
++ MPC
 
-```pip install -r requirements.txt```
+As well as options for custom implementations.
 
-3. Run pendulum.py
+![Example](examplevideo.mp4)
 
-To display plots, you may need to install tkinter:
-
-```sudo apt-get install python3-tk```
-
-To save MP4 animations, you may need to install ffmpeg: https://ffmpeg.org/
-
-```sudo apt-get install ffmpeg```
+It uses rk45 to simulate a dynamic model of the simple inverse pendulum on a cart: [Inverted Pendulum](https://en.wikipedia.org/wiki/Inverted_pendulum).
