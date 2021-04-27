@@ -374,7 +374,7 @@ class MPC_GPR(Controller):
 
         
 class BangBang(Controller):
-    def __init__(self, setpoint, magnitude):
+    def __init__(self, setpoint, magnitude, threshold):
         '''Simple "BangBang" style controller:
         if it's on turn it off
         if it's off turn it on
@@ -388,15 +388,39 @@ class BangBang(Controller):
         threshold : :obj:`float`
             max angle
         '''
-        self.set_theta = set_theta
+        self.setpoint = setpoint
         self.magnitude = magnitude
         self.threshold = threshold
     
-    def policy(self, state, t):
-        error = state[2] - self.setpoint
+    def policy(self, state, t, dt, xref):
+        error = (state[2] + np.pi) % (2 * np.pi) - np.pi - self.setpoint
+
         if error > 0.1 and state[2] < self.threshold:
-            return self.magnitude
+            action = -self.magnitude
         elif error < -0.1 and state[2] > -self.threshold:
-            return -self.magnitude
+            action = +self.magnitude
         else:
-            return 0
+            action = 0
+        data = {}
+        labels = ['x', 'xd', 't', 'td']
+        data.update(array_to_kv('zeros', labels, np.zeros(len(labels)) ))
+        return action, data
+    
+class PID(Controller):
+    def __init__(self, kp, ki, kd):
+        self.kp = kp
+        self.ki = ki
+        self.kd = kd
+        self.integrator = 0
+        self.prior = 0
+    def policy(self, state, t, dt, xref):
+        # wrap theta
+        theta = (state[2] + np.pi) % (2 * np.pi) - np.pi 
+        self.integrator += theta
+        deriv = (theta - self.prior) / dt
+        self.prior = theta
+        data = {}
+        labels = ['x', 'xd', 't', 'td']
+        data.update(array_to_kv('zeros', labels, np.zeros(len(labels)) ))
+        action = - (self.kp * state[2] + self.ki * self.integrator + self.kd * deriv)
+        return action, data

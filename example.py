@@ -1,7 +1,7 @@
 from pendulum.pendulum import Pendulum
 from pendulum.sim import Simulation
 from pendulum.viz import Visualizer
-from pendulum.controller import LQR, MPC, NoController
+from pendulum.controller import LQR, MPC, NoController, BangBang, PID
 import numpy as np
 
 dt = .01
@@ -11,11 +11,7 @@ pend = Pendulum(
     2.0,
     initial_state=np.array([0,0,0.3,0])
 )
-cont = LQR(
-    pend,
-    dt,
-    7
-)
+cont = PID(100, 0, 10)
 sim = Simulation(
     dt,
     10,
