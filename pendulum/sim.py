@@ -5,7 +5,10 @@ import matplotlib.pyplot as plt
 from pendulum.utils import array_to_kv
 from multiprocessing.dummy import Pool
 from datetime import datetime
+from tqdm import tqdm
 import pandas as pd
+import copy
+from pendulum.utils import wrap_pi
 
 class Simulation(object):
     '''The simulation class includes methods for simulating a pendulum(s)
@@ -82,11 +85,13 @@ class Simulation(object):
                     'type'  : 'hline'}
             ]
             ax.legend()
-        
-        for k, t in enumerate(times):
+        print('simulating...')
+        for k, t in tqdm(enumerate(times), total=len(times)):
             data = {}
             force = self.force(t)
+            statewrapped = wrap_pi(state)
             data.update(array_to_kv('state', statelabels , state))
+            data.update(array_to_kv('state wrapped', statelabels , statewrapped))
             if t < self.t_final/2:
                 setpoint = setpoints[0]
             else:
@@ -105,6 +110,7 @@ class Simulation(object):
             state, _ = pendulum.solve(self.dt, state, force)
             for k, v in data.items():
                 datas[k].append(v)
+        print('done!')
         if plot:
             plt.ioff()
         return pd.DataFrame(datas, index=times)

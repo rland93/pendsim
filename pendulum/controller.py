@@ -1,6 +1,7 @@
 import numpy as np
 import cvxpy as cp
 from scipy.signal import cont2discrete
+from scipy import spatial
 import scipy.spatial
 import matplotlib.pyplot as plt
 import time
@@ -29,6 +30,26 @@ class Controller(object):
             The controller action, in force applied to the cart.
         '''
         raise NotImplementedError
+
+class PID(Controller):
+    def __init__(self, pend, dt, kp, ki, kd):
+        self.kp, self.ki, self.kd = kp, ki, kd
+        self.integrator = 0
+        self.prev = 0
+    
+    def policy(self, state, t, dt, plot=None):
+        err = - (state[2]  + np.pi) % (2*np.pi) - np.pi
+        errd = (err - self.prev) / dt
+        self.integrator += err
+        action = self.kp * err + self.ki * self.integrator + self.kd * errd
+        self.prev = err
+
+        data = {}
+        labels = ['x', 'xd', 't', 'td']
+        data.update(array_to_kv('zeros', labels, np.zeros(len(labels)) ))
+        return action, data
+
+
 
 class LQR(Controller):
     def __init__(self, pend, dt, window):
@@ -77,8 +98,10 @@ class MPC(Controller):
         sys_disc = cont2discrete((A,B,C,D), dt, method='zoh')
         self.A, self.B = sys_disc[0], sys_disc[1]
         self.costW = np.diag([0, 0, 1, 0])
+        self.linear = np.zeros((4,1))
 
     def policy(self, state, t, dt, xref=np.array([0,0,0,0]), plot=None):
+        '''
         constr = []
         x = cp.Variable((4, self.T + 1))
         u = cp.Variable((1, self.T))
@@ -87,9 +110,9 @@ class MPC(Controller):
             constr += [x[:, t+1] == x[:,t] + dt * (self.A @ x[:,t] + self.B @ u[:,t])]
             constr += [x[:, 0] == state]
             constr += [cp.abs(u[0,:]) <= self.u_max]
-
         problem = cp.Problem(cp.Minimize(cost), constr)
         problem.solve('ECOS', verbose=True)
+        '''
         if plot is not None:
             fig, ax, lines = plot
             ax.set_xlim((np.min(list(range(self.T+1))) - 0.5, np.max(list(range(self.T+1))) + 0.1))
@@ -112,11 +135,11 @@ class MPC(Controller):
             ax.set_ylim((-3, 3))
             fig.canvas.draw()
             fig.canvas.flush_events()
-
-        action = - u[0,0].value
+        self.linear = self.A @ state + self.B @ np.atleast_2d(0)
+        action = 0# - u[0,0].value
         data = {}
         labels = ['x', 'xd', 't', 'td']
-        data.update(array_to_kv('zeros', labels, np.zeros(len(labels)) ))
+        data.update(array_to_kv('linear prediction', labels, self.linear))
         return action, data
 
 class NoController(Controller):
@@ -388,15 +411,21 @@ class BangBang(Controller):
         threshold : :obj:`float`
             max angle
         '''
-        self.set_theta = set_theta
+        self.setpoint = setpoint
         self.magnitude = magnitude
-        self.threshold = threshold
+        self.threshold = np.pi/4
     
-    def policy(self, state, t):
+    def policy(self, state, t, dt, plot=None):
         error = state[2] - self.setpoint
+        action = 0
         if error > 0.1 and state[2] < self.threshold:
-            return self.magnitude
+            action = -self.magnitude
         elif error < -0.1 and state[2] > -self.threshold:
-            return -self.magnitude
+            action = self.magnitude
         else:
-            return 0
+            action = 0
+
+        data = {}
+        labels = ['x', 'xd', 't', 'td']
+        data.update(array_to_kv('zeros', labels, np.zeros(len(labels)) ))
+        return action, data

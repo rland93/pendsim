@@ -9,7 +9,7 @@ class Visualizer(object):
             pend, 
             ls='-', 
             lc='k', 
-            frameskip=5, 
+            speed=2, 
             draw_ghost=False, 
             cart_squish=2, 
             window=(16,9),
@@ -22,7 +22,7 @@ class Visualizer(object):
         self.draw_ghost = draw_ghost
 
         # playback
-        self.skip = frameskip
+        self.speed = speed
         self.window = window
 
         ### DISPLAY ###
@@ -33,8 +33,8 @@ class Visualizer(object):
         # Pendulum Params
         self.p_rad = np.sqrt(self.pend.m) * self.disp_size/3
         # Display Params
-        self.xmax = np.stack(self.data['state'].values)[:,0].max() * 1.1
-        self.xmin = np.stack(self.data['state'].values)[:,0].min() * 1.1
+        self.xmax = self.data.loc(axis=1)['state','x'].values.max() * 1.1
+        self.xmin = self.data.loc(axis=1)['state','x'].values.min() * 1.1
         self.ymax = (self.pend.l + self.cart_h) * 1.3
         self.ymin = -self.pend.l * 1.3
         # save
@@ -65,7 +65,25 @@ class Visualizer(object):
         )
         return cart, mass, line
 
-    def display_viz(self):
+
+    def draw_cart(self, cart, mass, line, xi, thetai):
+        '''
+        Draw a cart using xi, thetai
+        '''
+        # adjust height when rendering
+        cart.set_xy((xi - self.cart_w * .5, self.cart_h))
+        # mass xy
+        massx = xi - self.pend.l * np.sin(thetai)
+        massy = self.cart_h + self.pend.l * np.cos(thetai)
+        mass.set_center((massx, massy))
+        # line
+        linexy = np.array([
+            [massx, xi],
+            [massy, self.cart_h]
+        ])
+        line.set_data(linexy)
+
+    def display_viz(self, ghost=None):
         '''
         Display (show) the animated visualization. This function calls plt.show()
         '''
@@ -75,35 +93,25 @@ class Visualizer(object):
         plt.axis('scaled')
         ax.set_xlim(self.xmin - self.pend.l*2, self.xmax + self.pend.l*2)
         ax.set_ylim(self.ymin, self.ymax)
-    
-        # matplotlib animate doesn't play nice with dataframes :(
-        anim_x = list(np.stack(self.data['state'].values)[:,0])[::self.skip]
-        anim_ghost_x = list(np.stack(self.data['setpoint'].values)[:,0])[::self.skip]
-        anim_th = list(np.stack(self.data['state'].values)[:,2])[::self.skip]
-        anim_ghost_th = list(np.stack(self.data['setpoint'].values)[:,2])[::self.skip]
-        anim_f = list(np.stack(self.data['forces'].values)[:])[::self.skip]
-        anim_c = list(np.stack(self.data['control action'].values)[:])[::self.skip]
-        anim_t = self.data.index.values.tolist()[::self.skip]
-
-        n_frames = len(anim_t)
+        n_frames = np.floor(len(self.data.index.values.tolist())/self.speed).astype(int)
         # Initialize objects
         cart, mass, line = self._draw_objs(self.lc, self.ls)
-        if self.draw_ghost:
-            ghostcart, ghostmass, ghostline = self._draw_objs('red', '-')
+
+        # add ghosts
+        ghostsobjs = {}
+        for (gid, gcolor) in zip(ghosts.items()):
+            ghostsobjs.append(self._draw_objs(*gcolor))
+
         # Line for external force
         ext_force = patches.FancyArrow(0,0,1,1, ec='red')
         # Line for control force
         ctrl_force = patches.FancyArrow(0,0,1,1, ec='blue')
-
         ground = patches.Rectangle((-1000, -2000), 2000, 2000, fc='lightgrey')
         ground.set_zorder(-1)
-
         # text
         angle_text = text.Annotation('', (4,4), xycoords='axes points')
         x_text = text.Annotation('',(4,16), xycoords='axes points')
         time_text = text.Annotation('', (4,28), xycoords='axes points')
-
-
         def init():
             '''
             Function required by matplotlib. Initializes the objects for use by the animator
@@ -117,72 +125,56 @@ class Visualizer(object):
             ax.add_artist(angle_text)
             ax.add_artist(x_text)
             ax.add_artist(time_text)
-            if self.draw_ghost:
-                ax.add_patch(ghostcart)
-                ax.add_patch(ghostmass)
-                ax.add_artist(ghostline)
-                return [ground, cart, mass, line, ext_force, 
-                        ctrl_force, angle_text, x_text, time_text,
-                        ghostcart, ghostmass, ghostline]
-            else:
-                return [ground, cart, mass, line, ext_force, 
-                        ctrl_force, angle_text, x_text, time_text]
+            plist = [ground, cart, mass, line, ext_force, ctrl_force, angle_text, x_text, time_text]
+            for gobj in ghostsobjs:
+                ax.add_patch(gobj[0])
+                ax.add_patch(gobj[1])
+                ax.add_artist(gobj[2])
+                plist.extend([gobj[0], gobj[1], gobj[2]])
+            return plist
 
         def animate(i):
             '''
-            Function required by matplotlib. Runs in a loop during FuncAnimation
+            Runs in a loop during FuncAnimation
             '''
-            # draw extern force
-            self.draw_force(ext_force, anim_f[i], anim_x[i], 0.6)
-            # draw control force
-            self.draw_force(ctrl_force, anim_c[i], anim_x[i], 0.3)
-            # draw cart
-            cartxy_true = (anim_x[i], self.cart_h)
-            cartxy_visible = (anim_x[i] - self.cart_w * .5, self.cart_h)
-            cart.set_xy(cartxy_visible)
-            massxy = (anim_x[i] - self.pend.l * np.sin(anim_th[i]), self.cart_h + self.pend.l * np.cos(anim_th[i]))
-            mass.set_center(massxy)
-            # draw connecting line
-            linexy = np.array([
-                [massxy[0], cartxy_true[0]],
-                [massxy[1], cartxy_true[1]]
-            ])
-            line.set_data(linexy)
+            # adjust animation speed
+            i = np.floor(i*self.speed).astype(int)
+
+            # if there's a ghost we take its information
+            # a ghost key must contain 'x' and 't' subkeys.
+            for gobj_set in ghostsobjs:
+
+
+
+            if ghost is not None:
+                if (ghost, 'x') not in self.data.columns:
+                    raise(ValueError('key {} does not have associated \'x\' value!'.format(ghost)))
+                else:
+                    ghost_xi = list(self.data[(ghost, 'x')].values)[i]
+                if (ghost, 't') not in self.data.columns:
+                    raise(ValueError('key {} does not have associated \'t\' value!'.format(ghost)))
+                else:
+                    ghost_ti = list(self.data[(ghost, 't')].values)[i]
+            
+            state_xi = list(self.data[('state','x')].values)[i]
+            state_ti = list(self.data[('state','t')].values)[i]
+            time_i = self.data.index[i]
+            # external force
+            self.draw_force(ext_force, list(self.data[('forces','forces')].values)[i], state_xi, 0.6)
+            self.draw_force(ctrl_force,list(self.data[('control action','control action')].values)[i],state_xi,0.5)
             # display text
-            angle_text.set_text(r"$\theta=$"+str(round(anim_th[i],3)))
-            x_text.set_text(r"$x=$" + str(round(anim_x[i],3)))
-            time_text.set_text(r"t="+str(round(anim_t[i],3)))
+            angle_text.set_text(r"$\theta=$"+str(round(state_ti,3)))
+            x_text.set_text(r"$x=$" + str(round(state_xi,3)))
+            time_text.set_text(r"t="+str(round(time_i,3)))
 
-            if self.draw_ghost:
-                # cart
-                ghostcart.set_xy(
-                    (anim_ghost_x[i] - self.cart_w * .5, 
-                    self.cart_h)
-                )
-
-                # mass
-                ghostmass.set_center(
-                    (anim_ghost_x[i] - self.pend.l * np.sin(anim_ghost_th[i]), 
-                    self.cart_h + self.pend.l * np.cos(anim_ghost_th[i]))
-                )
-                # line
-                ghostline.set_data(np.array([
-                    [anim_ghost_x[i] - self.pend.l * np.sin(anim_ghost_th[i]),anim_ghost_x[i]],
-                    [self.cart_h + self.pend.l * np.cos(anim_ghost_th[i]),self.cart_h]
-                ]))
-                return [ground, cart, mass, line, ext_force, 
-                        ctrl_force, angle_text, x_text, time_text,
-                        ghostcart, ghostline, ghostmass]
-
-            else:
-                return [ground, cart, mass, line, ext_force, ctrl_force, angle_text, x_text, time_text]
+            [ground, cart, mass, line, ext_force, ctrl_force, angle_text, x_text, time_text]
         
         def run_animation():
             '''
             Function to actually run the animation. Allows pausing on screen
             '''
             anim_running = True
-            animation = FuncAnimation(viz, animate, frames=n_frames, init_func=init, blit=True, interval=16)
+            animation = FuncAnimation(viz, animate, frames=n_frames, init_func=init, blit=True,interval=16)
             def onClick(event):
                 nonlocal anim_running
                 if anim_running:
@@ -194,6 +186,7 @@ class Visualizer(object):
             viz.canvas.mpl_connect('button_press_event', onClick)
             if self.save:
                 animation.save('./video.mp4', fps=30, bitrate=1000)
+        # run the animation and show
         run_animation()
         plt.show()
     
