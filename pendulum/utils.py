@@ -11,7 +11,13 @@ def array_to_kv(level1_key, level2_keys, array):
     return data
 
 def wrap_pi(state):
-    return np.array([state[0],state[1], (state[2] + np.pi) % (2 * np.pi) - np.pi,(state[3] + np.pi) % (2 * np.pi) - np.pi])
+    unwrap = lambda v: np.arctan2(np.sin(v), np.cos(v))
+    return np.array([
+        state[0],
+        state[1], 
+        unwrap(state[2]),
+        unwrap(state[3])
+        ])
 
 def sign(x):
     if x >= 0:

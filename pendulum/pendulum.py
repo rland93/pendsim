@@ -6,7 +6,7 @@ class Pendulum(object):
 
     Contains pendulum dynamical model and model parameters. 
     '''
-    def __init__(self, M, m, l, g=9.81, cfric=0.04, initial_state=np.array([0,0,0,0])):
+    def __init__(self, M, m, l, g=9.81, cfric=0.05, initial_state=np.array([0,0,0,0])):
         '''New pendulum object.
 
         Parameters
@@ -72,8 +72,7 @@ class Pendulum(object):
                 / (self.M + self.m - self.m * np.cos(theta) * np.cos(theta))
 
         tdd = (xdd * np.cos(theta) + self.g * np.sin(theta) ) / self.l
-
-        return np.array([xd * (1 - self.cfric), xdd, thetad, tdd, u])
+        return np.array([xd, xdd, thetad, tdd, u])
 
     def solve(self, dt, system_state, u, solve_args={}):
         '''helper method for solve ivp

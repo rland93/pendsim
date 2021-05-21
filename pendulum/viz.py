@@ -1,12 +1,16 @@
+from functools import partialmethod
 import numpy as np
 from matplotlib import patches, text, lines
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+from numpy.lib.utils import get_include
+import math
 
 class Visualizer(object):
     def __init__(self, 
             data, 
             pend, 
+            plotpoints=10,
             ls='-', 
             lc='k', 
             speed=2, 
@@ -24,6 +28,7 @@ class Visualizer(object):
         # playback
         self.speed = speed
         self.window = window
+        self.plotpoints = plotpoints
 
         ### DISPLAY ###
         self.disp_size = .5
@@ -83,24 +88,23 @@ class Visualizer(object):
         ])
         line.set_data(linexy)
 
-    def display_viz(self, ghost=None):
+    def display_viz(self, pltdata, ghosts=None):
         '''
         Display (show) the animated visualization. This function calls plt.show()
         '''
         # axis setup
-        viz = plt.figure(figsize=self.window)
-        ax = plt.axes()
-        plt.axis('scaled')
-        ax.set_xlim(self.xmin - self.pend.l*2, self.xmax + self.pend.l*2)
-        ax.set_ylim(self.ymin, self.ymax)
-        n_frames = np.floor(len(self.data.index.values.tolist())/self.speed).astype(int)
+        viz, ax = plt.subplots(nrows=2, figsize=self.window)
+        ax[0].set_xlim(self.xmin - self.pend.l*2, self.xmax + self.pend.l*2)
+        ax[0].set_ylim(self.ymin, self.ymax)
+        n_frames = np.floor(len(self.data.index.values.tolist())/self.speed).astype(int) - 10
         # Initialize objects
         cart, mass, line = self._draw_objs(self.lc, self.ls)
-
         # add ghosts
-        ghostsobjs = {}
-        for (gid, gcolor) in zip(ghosts.items()):
-            ghostsobjs.append(self._draw_objs(*gcolor))
+        ghostobjs = None
+        if ghosts is not None:
+            ghostobjs = {}
+            for gkey, gcolor in ghosts.items():
+                ghostobjs[gkey] = self._draw_objs(*gcolor)
 
         # Line for external force
         ext_force = patches.FancyArrow(0,0,1,1, ec='red')
@@ -112,52 +116,82 @@ class Visualizer(object):
         angle_text = text.Annotation('', (4,4), xycoords='axes points')
         x_text = text.Annotation('',(4,16), xycoords='axes points')
         time_text = text.Annotation('', (4,28), xycoords='axes points')
+        scatters = []
+        for k, pltattr in pltdata.items():
+            sc = ax[1].scatter(
+                [],[],
+                **pltattr)
+            scatters.append(sc)
         def init():
             '''
             Function required by matplotlib. Initializes the objects for use by the animator
             '''
-            ax.add_patch(cart)
-            ax.add_patch(mass)
-            ax.add_artist(line)
-            ax.add_patch(ext_force)
-            ax.add_patch(ctrl_force)
-            ax.add_patch(ground)
-            ax.add_artist(angle_text)
-            ax.add_artist(x_text)
-            ax.add_artist(time_text)
+            ax[0].add_patch(cart)
+            ax[0].add_patch(mass)
+            ax[0].add_artist(line)
+            ax[0].add_patch(ext_force)
+            ax[0].add_patch(ctrl_force)
+            ax[0].add_patch(ground)
+            ax[0].add_artist(angle_text)
+            ax[0].add_artist(x_text)
+            ax[0].add_artist(time_text)
             plist = [ground, cart, mass, line, ext_force, ctrl_force, angle_text, x_text, time_text]
-            for gobj in ghostsobjs:
-                ax.add_patch(gobj[0])
-                ax.add_patch(gobj[1])
-                ax.add_artist(gobj[2])
-                plist.extend([gobj[0], gobj[1], gobj[2]])
+            if ghostobjs is not None:
+                for _, gobjs in ghostobjs.items():
+                    ax[0].add_patch(gobjs[0])
+                    ax[0].add_patch(gobjs[1])
+                    ax[0].add_artist(gobjs[2])
+                    plist.extend([gobjs[0], gobjs[1], gobjs[2]])
+            # add data
+            plist.extend(scatters)
             return plist
-
+        
         def animate(i):
             '''
             Runs in a loop during FuncAnimation
             '''
-            # adjust animation speed
+            retobjs = [ground, cart, mass, line, ext_force, ctrl_force, angle_text, x_text, time_text]
             i = np.floor(i*self.speed).astype(int)
+            #### Scatter
+            if i != 0:
+                sci_l = max(i - self.plotpoints, 0)
+                sci_r = i
+                scx = self.data.index[sci_l:sci_r]
+                for d, sc in zip(pltdata, scatters):
+                    scy = self.data[d].values[sci_l:sci_r]
+                    xy = np.column_stack((scx, scy))
+                    sc.set_offsets(xy)
+
+                scxlim = self.data.index[sci_l], self.data.index[sci_r]
+                ax[1].set_xlim(scxlim)
+
+                scyall = []
+                for d in pltdata:
+                    scyall.extend(list(self.data[d].values[sci_l:sci_r]))
+                scylimu = max(0.01, max(scyall))
+                scyliml = min(0, min(scyall))
+                ax[1].set_ylim((scyliml, scylimu))
+                ax[1].legend(bbox_to_anchor=(.1, .5), loc='lower right')
+            retobjs.extend(scatters)
+            # adjust lims
+
+
+            #### Cart
+            
 
             # if there's a ghost we take its information
             # a ghost key must contain 'x' and 't' subkeys.
-            for gobj_set in ghostsobjs:
-
-
-
-            if ghost is not None:
-                if (ghost, 'x') not in self.data.columns:
-                    raise(ValueError('key {} does not have associated \'x\' value!'.format(ghost)))
-                else:
-                    ghost_xi = list(self.data[(ghost, 'x')].values)[i]
-                if (ghost, 't') not in self.data.columns:
-                    raise(ValueError('key {} does not have associated \'t\' value!'.format(ghost)))
-                else:
-                    ghost_ti = list(self.data[(ghost, 't')].values)[i]
-            
+            if ghostobjs:
+                for gkey, gobjs in ghostobjs.items():
+                    g_xi = list(self.data[(gkey, 'x')].values)[i]
+                    g_ti = list(self.data[(gkey, 't')].values)[i]
+                    self.draw_cart(*gobjs, g_xi, g_ti)
+                    retobjs.extend(gobjs)
+            # drawcart
             state_xi = list(self.data[('state','x')].values)[i]
             state_ti = list(self.data[('state','t')].values)[i]
+            self.draw_cart(cart, mass, line, state_xi, state_ti)
+
             time_i = self.data.index[i]
             # external force
             self.draw_force(ext_force, list(self.data[('forces','forces')].values)[i], state_xi, 0.6)
@@ -166,15 +200,14 @@ class Visualizer(object):
             angle_text.set_text(r"$\theta=$"+str(round(state_ti,3)))
             x_text.set_text(r"$x=$" + str(round(state_xi,3)))
             time_text.set_text(r"t="+str(round(time_i,3)))
+            return retobjs
 
-            [ground, cart, mass, line, ext_force, ctrl_force, angle_text, x_text, time_text]
-        
         def run_animation():
             '''
             Function to actually run the animation. Allows pausing on screen
             '''
             anim_running = True
-            animation = FuncAnimation(viz, animate, frames=n_frames, init_func=init, blit=True,interval=16)
+            animation = FuncAnimation(viz, animate, frames=n_frames, init_func=init, blit=False,interval=100)
             def onClick(event):
                 nonlocal anim_running
                 if anim_running:
