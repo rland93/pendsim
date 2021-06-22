@@ -70,7 +70,6 @@ class Simulation(object):
             lplot2 = ax.plot([], [])
             print(type(lplot1), type(lplot2))
 
-        print('simulating...')
         for k, t in tqdm(enumerate(times), total=len(times)):
             data = {}
             force = self.force(t)
@@ -95,7 +94,6 @@ class Simulation(object):
             state, _ = pendulum.solve(self.dt, state, force)
             for k, v in data.items():
                 datas[k].append(v)
-        print('done!')
         if plot:
             plt.ioff()
         return pd.DataFrame(datas, index=times)

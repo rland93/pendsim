@@ -1,5 +1,5 @@
 import numpy as np
-import copy
+
 def array_to_kv(level1_key, level2_keys, array):
     data={}
     if array.shape[0] != len(level2_keys):
