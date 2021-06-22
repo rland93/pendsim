@@ -5,7 +5,10 @@ import matplotlib.pyplot as plt
 from pendulum.utils import array_to_kv
 from multiprocessing.dummy import Pool
 from datetime import datetime
+from tqdm import tqdm
 import pandas as pd
+import copy
+from pendulum.utils import wrap_pi
 
 class Simulation(object):
     '''The simulation class includes methods for simulating a pendulum(s)
@@ -62,37 +65,23 @@ class Simulation(object):
             plt.ion()
             fig = plt.figure()
             ax = fig.add_subplot(111)
-            l1, = ax.plot(times, [0] * len(times), ls='-', label='x')
-            l2, = ax.plot(times, [0] * len(times), ls='-', label='t')
-            l3, = ax.plot(times, [0] * len(times), ls='--', label='u')
-            h3 = ax.axhline(y=0, color='k', linestyle=':', label='x (setpoint)')
-            # future estimates
-            lines = [
-                {   'linesobj' : l1,
-                    'index' : 0,
-                    'type'  : 'plot'},
-                {   'linesobj' : l2,
-                    'index' : 2,
-                    'type'  : 'plot'},
-                {   'linesobj' : l3,
-                    'type'  : 'action',
-                    'index' : None},
-                {   'linesobj' : h3,
-                    'index' : 0,
-                    'type'  : 'hline'}
-            ]
-            ax.legend()
-        
-        for k, t in enumerate(times):
+            sc = ax.scatter([],[])
+            lplot1 = ax.plot([], [])
+            lplot2 = ax.plot([], [])
+            print(type(lplot1), type(lplot2))
+
+        for k, t in tqdm(enumerate(times), total=len(times)):
             data = {}
             force = self.force(t)
+            statewrapped = wrap_pi(state)
             data.update(array_to_kv('state', statelabels , state))
+            data.update(array_to_kv('state wrapped', statelabels , statewrapped))
             if t < self.t_final/2:
                 setpoint = setpoints[0]
             else:
                 setpoint = setpoints[1]
             if plot:
-                action, controller_data = controller.policy(state, t, self.dt, setpoint, plot=(fig, ax, lines))
+                action, controller_data = controller.policy(state, t, self.dt, setpoint, plot=(fig, ax, sc, lplot1, lplot2))
             else:
                 action, controller_data = controller.policy(state, t, self.dt, setpoint)
             
