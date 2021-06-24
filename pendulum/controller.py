@@ -245,5 +245,4 @@ class LQR_GPR(Controller):
     
     @staticmethod
     def _quadform(M, N):
-        return (M.T.dot(N) * M.T).sum(axis=1)
-s
+        return (M.T.dot(N) * M.T).sum(axis=1)s
