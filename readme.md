@@ -1,16 +1,8 @@
 # Inverse Pendulum Simulation
 
-A simple inverse-pendulum simulator. ![(Example Video)](https://user-images.githubusercontent.com/33564709/116198178-817dde80-a6ea-11eb-8cdf-e0c53c922416.mp4)
-
+A simple inverse-pendulum simulator, with a module to render animations of the simulation and API for custom controllers. ![(Example Video)](https://user-images.githubusercontent.com/33564709/116198178-817dde80-a6ea-11eb-8cdf-e0c53c922416.mp4)
 
 [Package Documentation](http://rland93.github.io/pendulum/)
-
-It includes implementations for controllers:
-+ PID
-+ Bang Bang
-+ LQR
-
-As well as options for custom implementations.
 
 Example Notebooks (Links to Google Colab):
 
