@@ -12,7 +12,7 @@ It includes implementations for controllers:
 
 As well as options for custom implementations.
 
-Example Notebooks:
+Example Notebooks (Links to Google Colab):
 
 + [No Controller (Simulation Only)](https://colab.research.google.com/github/rland93/pendulum/blob/master/notebooks/nocontroller.ipynb)
 + [PID Controller](https://colab.research.google.com/github/rland93/pendulum/blob/master/notebooks/PID.ipynb)
