@@ -16,6 +16,7 @@ Example Notebooks (Links to Google Colab):
 
 + [No Controller (Simulation Only)](https://colab.research.google.com/github/rland93/pendulum/blob/master/notebooks/nocontroller.ipynb)
 + [PID Controller](https://colab.research.google.com/github/rland93/pendulum/blob/master/notebooks/PID.ipynb)
++ [LQR](https://colab.research.google.com/github/rland93/pendulum/blob/master/notebooks/LQR.ipynb)
 + [LQR (With Gaussian Process Prediction)](https://colab.research.google.com/github/rland93/pendulum/blob/master/notebooks/lqr_gpr.ipynb)
 
 It uses rk45 to simulate a dynamic model of the simple inverse pendulum on a cart: [Inverted Pendulum](https://en.wikipedia.org/wiki/Inverted_pendulum).
