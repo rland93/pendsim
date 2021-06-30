@@ -4,7 +4,7 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 from pendulum.utils import array_to_kv
-from multiprocessing.dummy import Pool
+from multiprocessing import Pool
 from datetime import datetime
 from tqdm import tqdm
 import pandas as pd
@@ -98,7 +98,7 @@ class Simulation(object):
             plt.ioff()
         return pd.DataFrame(datas, index=times)
     
-    def simulate_multiple(self, pendulums, controllers, parallel=True):
+    def simulate_multiple(self, pendulums, controllers, parallel=True, nprocs=16):
         '''Simulate many pendulum/controller combinations.
 
         If you are using random variables to populate pendulums/controllers, 
@@ -130,20 +130,22 @@ class Simulation(object):
         '''
         if len(pendulums) != len(controllers):
             raise ValueError('pendulums and controllers must have same length. len(pendulums)={}, len(controllers)={}'.format(len(pendulums), len(controllers)))
-
+        pc = list(zip(pendulums, controllers))
         if parallel:
-            pool = Pool(16)
-            print('Simulating {} runs.'.format(len(pendulums)))
             tic = datetime.now()
-            results = pool.starmap(self.simulate, zip(pendulums, controllers))
-            toc = datetime.now()
+            print('Simulating {} runs.'.format(len(pc)))
+            results = Pool().map(self.runsim, pc)
+            print('took {} s'.format(datetime.now()-tic))
             return pd.concat(results, axis=0, keys=list(range(len(results))))
         else:
             print('Simulating {} runs.'.format(len(pendulums)))
             tic = datetime.now()
             allresults = []
-            for pendulum, controller in zip(pendulums, controllers):
+            for pendulum, controller in pc:
                 results = self.simulate(pendulum, controller)
                 allresults.append(results)
-            toc = datetime.now()
+            print('took {} s'.format(datetime.now()-tic))
             return pd.concat(allresults, axis=0, keys = list(range(len(results))))
+
+    def runsim(self, pend_cont_tuple):
+        return self.simulate(*pend_cont_tuple)
