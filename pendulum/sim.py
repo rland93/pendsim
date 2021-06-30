@@ -1,4 +1,5 @@
 from collections import defaultdict
+from pendulum.controller import Controller
 import random
 import numpy as np
 import matplotlib.pyplot as plt
@@ -14,7 +15,7 @@ class Simulation(object):
     '''The simulation class includes methods for simulating a pendulum(s)
     with its controller(s), (and some methods for processing pendulum data)
     '''
-    def __init__(self, dt, t_final, force):
+    def __init__(self, dt, t_final, force, noise_scale=None):
         '''New Simulation object
 
         Parameters
@@ -26,10 +27,13 @@ class Simulation(object):
         force : :obj:function
             a function which takes 1 argument, t, and returns
             a force in N based on t.
+        noise_scale : :obj:array or scalar
+            a scalar or array for state noise
         '''
         self.dt = dt # time step
         self.t_final = t_final # end at or before this time
         self.force = force # forcing function
+        self.noise_scale = noise_scale
     
     def simulate(self, pendulum, controller, **kwargs):
         '''Simulate a pendulum/controller combination from t_0 to t_final.
@@ -53,10 +57,6 @@ class Simulation(object):
         state = pendulum.y_0
         datas = defaultdict(list)
         statelabels = ['x', 'xd', 't', 'td']
-        setpoints = np.array([
-            [0,0,0,0],
-            [random.uniform(-1,-1), 0, 0, 0]
-        ])
         while t <= self.t_final:
             times.append(t)
             t += self.dt
@@ -73,23 +73,23 @@ class Simulation(object):
         for k, t in tqdm(enumerate(times), total=len(times)):
             data = {}
             force = self.force(t)
-            statewrapped = wrap_pi(state)
+
+            # Control policy
             data.update(array_to_kv('state', statelabels , state))
-            data.update(array_to_kv('state wrapped', statelabels , statewrapped))
-            if t < self.t_final/2:
-                setpoint = setpoints[0]
+            if self.noise_scale is not None:
+                noisy_state = state + np.random.normal(0, scale=self.noise_scale)
+                data.update(array_to_kv('measured state', statelabels, noisy_state))
+                action, controller_data = controller.policy(noisy_state, t, self.dt)
             else:
-                setpoint = setpoints[1]
-            if plot:
-                action, controller_data = controller.policy(state, t, self.dt, setpoint, plot=(fig, ax, sc, lplot1, lplot2))
-            else:
-                action, controller_data = controller.policy(state, t, self.dt, setpoint)
-            
-            data.update(array_to_kv('setpoint', statelabels, setpoint))
+                action, controller_data = controller.policy(state, t, self.dt)
             data.update(controller_data)
+
+            # Simulation Data
             data[('energy','kinetic')], data[('energy', 'potential')], data['energy','total'] = pendulum.get_energy(state)
             data[('forces','forces')] = force
             data[('control action','control action')] = action
+
+            # Simulation solution
             force += action
             state, _ = pendulum.solve(self.dt, state, force)
             for k, v in data.items():

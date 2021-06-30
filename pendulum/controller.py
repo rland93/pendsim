@@ -1,12 +1,20 @@
+from re import X
+from filterpy.kalman.sigma_points import MerweScaledSigmaPoints
 import numpy as np
 import cvxpy as cp
+from numpy.lib.function_base import place
+from scipy.optimize import zeros
 from scipy.signal import cont2discrete
+from scipy.signal.ltisys import StateSpaceContinuous
 from pendulum.utils import array_to_kv, wrap_pi, sign
 import copy
 # necessary for GPR
 from sklearn import preprocessing, gaussian_process
 from sklearn.utils._testing import ignore_warnings
 from sklearn.exceptions import ConvergenceWarning
+
+
+np.set_printoptions(precision=5,suppress=True)
 
 class Controller(object):
     '''
@@ -37,7 +45,7 @@ class PID(Controller):
         self.integrator = 0
         self.prev = 0
     
-    def policy(self, state, t, dt, plot=None):
+    def policy(self, state, t, dt):
         err = - (state[2]  + np.pi) % (2*np.pi) - np.pi
         errd = (err - self.prev) / dt
         self.integrator += err
@@ -60,7 +68,7 @@ class LQR(Controller):
         self.Q = np.diag(Q)
         self.R = np.atleast_2d(R)
 
-    def policy(self, state, t, dt, xref=np.array([0,0,0,0]), plot=None):
+    def policy(self, state, t, dt):
         quadform = lambda M, N: (M.T.dot(N) * M.T).sum(axis=1)
         P = [None] * (self.w+1)
         P[self.w] = self.Q
@@ -111,7 +119,7 @@ class BangBang(Controller):
         self.magnitude = magnitude
         self.threshold = np.pi/4
     
-    def policy(self, state, t, dt, plot=None):
+    def policy(self, state, t, dt):
         error = state[2] - self.setpoint
         action = 0
         if error > 0.1 and state[2] < self.threshold:
@@ -166,7 +174,7 @@ class LQR_GPR(Controller):
         self.priors = []
 
     @ignore_warnings(category=ConvergenceWarning)
-    def policy(self, state, t, dt, xref=np.array([0,0,0,0]), plot=None):
+    def policy(self, state, t, dt):
         ### Wrap 
         x = copy.deepcopy(wrap_pi(state))
         ### Solve LQR
@@ -188,7 +196,6 @@ class LQR_GPR(Controller):
             SC = preprocessing.StandardScaler()
             SC = SC.fit(z)
             z_trans = SC.transform(z)
-
             rq = gaussian_process.kernels.RBF(4.0, length_scale_bounds=(.5,50.0))
             ck = gaussian_process.kernels.ConstantKernel(constant_value=1.0)
             gp = gaussian_process.GaussianProcessRegressor(
@@ -246,3 +253,132 @@ class LQR_GPR(Controller):
     @staticmethod
     def _quadform(M, N):
         return (M.T.dot(N) * M.T).sum(axis=1)
+
+class UKF(Controller):
+    def __init__(self, pend, dt):
+        from filterpy.kalman.UKF import UnscentedKalmanFilter
+        from filterpy.kalman.sigma_points import MerweScaledSigmaPoints
+    
+        n = 4
+        points = MerweScaledSigmaPoints(
+            n, 0.001, 2.0, 0
+        )
+        self.kf = UnscentedKalmanFilter(
+            dim_x = n,
+            dim_z = n,
+            dt = dt,
+            fx = self.fx,
+            hx = self.hx,
+            points = points,
+        )
+        self.tick = 0
+        self.W = 10
+        self.priors=[]
+
+        # model params
+        A = pend.jacA
+        B = pend.jacB
+        C, D = np.zeros((1, A.shape[0])), np.zeros((1, 1))
+        sys_disc = cont2discrete((A,B,C,D), dt, method='zoh')
+        self.A, self.B = sys_disc[0], np.atleast_2d(sys_disc[1])
+
+
+    def fx(self, x, dt):
+        return np.dot(self.A, x)
+    def hx(self, x):
+        return x
+
+    def policy(self, state, t, dt):
+        lx = max(self.tick - self.W, 1)
+        ux = self.tick
+        self.priors.append(state)
+        if self.tick >= 10:
+            z_std = np.atleast_1d(np.std(self.priors[lx:ux], axis=0))**2
+            self.kf.R = np.diag(z_std)
+        self.kf.P *= .2
+        self.kf.predict()
+        self.kf.update(state)
+        self.tick += 1
+        data = {}
+        labels = ['x', 'xd', 't', 'td']
+        data.update(array_to_kv('est', labels, self.kf.x ))
+        return 0, data
+
+class LQR_UKF(Controller):
+    def __init__(self, pend, dt, window, Q, R):
+        self.w = window
+        self.tick=0
+        A = pend.jacA
+        B = pend.jacB
+        C, D = np.zeros((1, A.shape[0])), np.zeros((1, 1))
+        sys_disc = cont2discrete((A,B,C,D), dt, method='zoh')
+        self.A, self.B = sys_disc[0], np.atleast_2d(sys_disc[1])
+        self.Q = np.diag(Q)
+        self.R = np.atleast_2d(R)
+
+        
+        from filterpy.kalman.UKF import UnscentedKalmanFilter
+        from filterpy.kalman.sigma_points import MerweScaledSigmaPoints
+        n=4
+        points = MerweScaledSigmaPoints(
+            n,
+            alpha=0.001,
+            beta=2.0,
+            kappa=-1.0
+        )
+
+        self.kf = UnscentedKalmanFilter(
+            dim_x = n,
+            dim_z = n,
+            fx = self.fx,
+            hx = self.hx,
+            dt = dt,
+            points = points,
+        )
+        self.kf.x = pend.y_0
+        self.kf.R = np.diag([1,1,1,1])
+        self.priors = []
+
+        self.W = 10
+
+    def fx(self, x, dt):
+        res = np.dot(self.A, x)
+        return res
+    def hx(self, x):
+        return x
+
+    def policy(self, state, t, dt):
+        lx = max(self.tick - self.W, 1)
+        ux = self.tick
+        self.priors.append(state)
+        if self.tick >= self.W:
+            z_std = np.atleast_1d(np.std(self.priors[lx:ux], axis=0))
+            self.kf.R = np.diag(z_std)  
+        self.kf.predict()
+        self.kf.update(state)
+        x = self.kf.x
+        '''
+        quadform = lambda M, N: (M.T.dot(N) * M.T).sum(axis=1)
+        P = [None] * (self.w+1)
+        P[self.w] = self.Q
+        for k in range(self.w, 0, -1):
+            c1 = quadform(self.A, P[k])
+            c2 = np.linalg.pinv(self.R + quadform(self.B, P[k]))
+            c3 = (self.A.T @ P[k] @ self.B) @ c2 @ (self.B.T @ P[k] @ self.A)
+            P[k-1] = c1 - c3
+        K = [None] * self.w
+        u = [None] * self.w
+        for i in range(self.w):
+            c1 = -np.linalg.pinv(self.R + quadform(self.B, P[k]))
+            c2 = self.B.T @ P[i+1] @ self.A
+            K[i] = c1 @ c2
+            u[i] = K[i] @ (self.kf.x)
+        action = float(np.squeeze(u[0]))
+        '''
+        action = 0
+        self.tick += 1
+        data = {}
+        labels = ['x', 'xd', 't', 'td']
+        data.update(array_to_kv('est', labels, x ))
+        return action, data
+
