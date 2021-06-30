@@ -1,10 +1,13 @@
+import sys
+sys.path[0] += '/../'
+print(sys.path)
 from pendulum import controller, pendulum, sim, utils, viz
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 
-dt, t_final = 0.01, 20
+dt, t_final = 0.01, 6
 c1, c2, c3, c4, fshift = 5, 3.0, 4, .2, 3
 def force_fn(t):
   return c1 * np.sin(c2*t) * c3/(c4*np.sqrt(np.pi)) * np.exp(-((t-fshift)/c4)**2)
