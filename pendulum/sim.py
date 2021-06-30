@@ -137,7 +137,6 @@ class Simulation(object):
             tic = datetime.now()
             results = pool.starmap(self.simulate, zip(pendulums, controllers))
             toc = datetime.now()
-            print('finished in {}'.format(toc - tic))
             return pd.concat(results, axis=0, keys=list(range(len(results))))
         else:
             print('Simulating {} runs.'.format(len(pendulums)))
@@ -147,5 +146,4 @@ class Simulation(object):
                 results = self.simulate(pendulum, controller)
                 allresults.append(results)
             toc = datetime.now()
-            print('finished in {}'.format(toc - tic))
             return pd.concat(allresults, axis=0, keys = list(range(len(results))))

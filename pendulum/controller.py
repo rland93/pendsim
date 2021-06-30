@@ -1,4 +1,5 @@
 from re import X
+from typing import KeysView
 from filterpy.kalman.sigma_points import MerweScaledSigmaPoints
 import numpy as np
 import cvxpy as cp
@@ -303,9 +304,10 @@ class UKF(Controller):
         labels = ['x', 'xd', 't', 'td']
         data.update(array_to_kv('est', labels, self.kf.x ))
         return 0, data
-
+from filterpy.kalman.UKF import UnscentedKalmanFilter
+from filterpy.kalman.sigma_points import MerweScaledSigmaPoints
 class LQR_UKF(Controller):
-    def __init__(self, pend, dt, window, Q, R):
+    def __init__(self, pend, dt, window, Q, R, smoothing):
         self.w = window
         self.tick=0
         A = pend.jacA
@@ -314,49 +316,38 @@ class LQR_UKF(Controller):
         sys_disc = cont2discrete((A,B,C,D), dt, method='zoh')
         self.A, self.B = sys_disc[0], np.atleast_2d(sys_disc[1])
         self.Q = np.diag(Q)
-        self.R = np.atleast_2d(R)
-
-        
-        from filterpy.kalman.UKF import UnscentedKalmanFilter
-        from filterpy.kalman.sigma_points import MerweScaledSigmaPoints
-        n=4
-        points = MerweScaledSigmaPoints(
-            n,
-            alpha=0.001,
-            beta=2.0,
-            kappa=-1.0
-        )
-
-        self.kf = UnscentedKalmanFilter(
-            dim_x = n,
-            dim_z = n,
-            fx = self.fx,
-            hx = self.hx,
-            dt = dt,
-            points = points,
-        )
-        self.kf.x = pend.y_0
-        self.kf.R = np.diag([1,1,1,1])
+        self.R = np.atleast_2d(R)        
         self.priors = []
-
-        self.W = 10
-
-    def fx(self, x, dt):
-        res = np.dot(self.A, x)
-        return res
-    def hx(self, x):
-        return x
+        self.W = 20
+        self.smoothing = smoothing
+        self.pend = pend
 
     def policy(self, state, t, dt):
         lx = max(self.tick - self.W, 1)
-        ux = self.tick
         self.priors.append(state)
-        if self.tick >= self.W:
-            z_std = np.atleast_1d(np.std(self.priors[lx:ux], axis=0))
-            self.kf.R = np.diag(z_std)  
-        self.kf.predict()
-        self.kf.update(state)
-        x = self.kf.x
+        if self.tick == 0:
+            self.kfs = []
+            for i in range(4):
+                fx = lambda x, dt: np.sum(self.A[:,i] *x) 
+                hx = lambda x: x
+                kf = UnscentedKalmanFilter(dim_x = 1, dim_z = 1,
+                    fx = fx,
+                    hx = hx,
+                    dt = dt,
+                    points = MerweScaledSigmaPoints(1,1e-3,2.0,2.0),
+                )
+                kf.x = state[i]
+                kf.R = 1
+                self.kfs.append(kf)
+        if self.tick >= 2:
+            x =np.empty((4,), dtype=float)
+            z_std = np.std(np.stack(self.priors[lx:self.tick]),axis=0)
+            for i, (kf, s) in enumerate(zip(self.kfs, state)):
+                kf.predict()
+                kf.update(s, R=z_std[i]*self.smoothing)
+                x[i] = np.squeeze(kf.x)
+        else:
+            x = state
         '''
         quadform = lambda M, N: (M.T.dot(N) * M.T).sum(axis=1)
         P = [None] * (self.w+1)
