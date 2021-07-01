@@ -1,5 +1,6 @@
 from re import X
 from typing import KeysView
+from filterpy.common.discretization import Q_discrete_white_noise
 from filterpy.kalman.sigma_points import MerweScaledSigmaPoints
 import numpy as np
 import cvxpy as cp
@@ -60,7 +61,7 @@ class PID(Controller):
 
 class LQR(Controller):
     def __init__(self, pend, dt, window, Q, R):
-        self.w = window
+        self.window = window
         A = pend.jacA
         B = pend.jacB
         C, D = np.zeros((1, A.shape[0])), np.zeros((1, 1))
@@ -70,36 +71,17 @@ class LQR(Controller):
         self.R = np.atleast_2d(R)
 
     def policy(self, state, t, dt):
-        quadform = lambda M, N: (M.T.dot(N) * M.T).sum(axis=1)
-        P = [None] * (self.w+1)
-        P[self.w] = self.Q
-
-        for k in range(self.w, 0, -1):
-            c1 = quadform(self.A, P[k])
-            c2 = np.linalg.pinv(self.R + quadform(self.B, P[k]))
-            c3 = (self.A.T @ P[k] @ self.B) @ c2 @ (self.B.T @ P[k] @ self.A)
-            P[k-1] = c1 - c3
-
-        K = [None] * self.w
-        u = [None] * self.w
-        for i in range(self.w):
-            c1 = -np.linalg.pinv(self.R + quadform(self.B, P[k]))
-            c2 = self.B.T @ P[i+1] @ self.A
-            K[i] = c1 @ c2
-            u[i] = K[i] @ (state - np.array([0,0,0,0]))
-
-        action = float(np.squeeze(u[0]))
+        action = do_lqr(self.window, self.A, self.B, self.Q, self.R, state)
         data = {}
         labels = ['x', 'xd', 't', 'td']
-        data.update(array_to_kv('zeros', labels, np.zeros(len(labels)) ))
-        return action, data
+        return action, {}
 
 class NoController(Controller):
     def __init__(self):
         pass
     
     def policy(self, state, t, dt):
-        return 0
+        return 0, {}
 
 class BangBang(Controller):
     def __init__(self, setpoint, magnitude, threshold):
@@ -129,11 +111,7 @@ class BangBang(Controller):
             action = self.magnitude
         else:
             action = 0
-
-        data = {}
-        labels = ['x', 'xd', 't', 'td']
-        data.update(array_to_kv('zeros', labels, np.zeros(len(labels)) ))
-        return action, data
+        return action, {}
 
 class LQR_GPR(Controller):
     '''A controller that controls with an LQR controller (with a swing-up strategy)
@@ -157,7 +135,7 @@ class LQR_GPR(Controller):
     '''
     def __init__(self, pend, dt, window, bwindow, Q, R):
         # LQR params
-        self.w = window
+        self.window = window
         self.Q = np.diag(Q)
         self.R = np.atleast_2d(R)
         self.pend = pend
@@ -179,11 +157,8 @@ class LQR_GPR(Controller):
         ### Wrap 
         x = copy.deepcopy(wrap_pi(state))
         ### Solve LQR
-        Q = self.Q
-        R = self.R
-        actions = -np.squeeze(self.solve_LQR(state, Q, R))
         if np.abs(x[2]) < np.pi/4:
-            action = actions[0]
+            action = do_lqr(self.window, self.A, self.B, self.Q, self.R, state)
         else:
             action = self.swingup(state, 50)
 
@@ -232,144 +207,83 @@ class LQR_GPR(Controller):
         beta = E/E_norm
         u = k* beta * sign(x[3] * np.cos(x[2]))
         return - u
-    
-    def solve_LQR(self, state, Q, R):
-        # solve an LQR policy on state with Q, R
-        P = [None] * (self.w+1)
-        P[self.w] = Q
-        for k in range(self.w, 0, -1):
-            c1 = self._quadform(self.A, P[k])
-            c2 = np.linalg.pinv(R + self._quadform(self.B, P[k]))
-            c3 = (self.A.T @ P[k] @ self.B) @ c2 @ (self.B.T @ P[k] @ self.A)
-            P[k-1] = c1 - c3
-        K = [None] * self.w
-        u = [None] * self.w
-        for i in range(self.w):
-            c1 = -np.linalg.pinv(R + self._quadform(self.B, P[k]))
-            c2 = self.B.T @ P[i+1] @ self.A
-            K[i] = c1 @ c2
-            u[i] = K[i] @ (np.array([0,0,0,0]) - state)
-        return u
-    
-    @staticmethod
-    def _quadform(M, N):
-        return (M.T.dot(N) * M.T).sum(axis=1)
 
-class UKF(Controller):
-    def __init__(self, pend, dt):
-        from filterpy.kalman.UKF import UnscentedKalmanFilter
-        from filterpy.kalman.sigma_points import MerweScaledSigmaPoints
-    
-        n = 4
-        points = MerweScaledSigmaPoints(
-            n, 0.001, 2.0, 0
-        )
-        self.kf = UnscentedKalmanFilter(
-            dim_x = n,
-            dim_z = n,
-            dt = dt,
-            fx = self.fx,
-            hx = self.hx,
-            points = points,
-        )
+from filterpy.kalman.UKF import UnscentedKalmanFilter
+from filterpy.kalman import sigma_points
+
+class LQR_UKF(Controller):
+    def __init__(self, pend, dt, window, Q, R, s=10, var_window=10):
+        self.pend = pend
+        self.dt = dt
+        self.window = window
+        self.Q = np.diag(Q)
+        self.R = np.atleast_2d(R)
+        self.s = s
+        self.vw = var_window
+        self.A, self.B = self._get_linear_sys(pend, dt)
         self.tick = 0
-        self.W = 10
-        self.priors=[]
+        self.priors = []
+        self.kf = self.create_ukf()
 
-        # model params
-        A = pend.jacA
-        B = pend.jacB
+    @staticmethod
+    def _get_linear_sys(pend, dt):
+        A, B = pend.jacA, pend.jacB
         C, D = np.zeros((1, A.shape[0])), np.zeros((1, 1))
-        sys_disc = cont2discrete((A,B,C,D), dt, method='zoh')
-        self.A, self.B = sys_disc[0], np.atleast_2d(sys_disc[1])
+        sys_disc = cont2discrete((A, B, C, D), dt, method='zoh')
+        return sys_disc[0], np.atleast_2d(sys_disc[1])
 
-
-    def fx(self, x, dt):
-        return np.dot(self.A, x)
-    def hx(self, x):
-        return x
+    def create_ukf(self):
+        def fx(x, dt): return self.A.dot(x)
+        def hx(x): return x
+        points2 = sigma_points.SimplexSigmaPoints(4)
+        kf = UnscentedKalmanFilter(4, 4, self.dt, hx, fx, points2)
+        # initialize noise
+        kf.Q = np.diag([.2] * 4)
+        # initialize smoothing
+        kf.R = np.diag([self.s] * 4)
+        return kf
 
     def policy(self, state, t, dt):
-        lx = max(self.tick - self.W, 1)
-        ux = self.tick
         self.priors.append(state)
-        if self.tick >= 10:
-            z_std = np.atleast_1d(np.std(self.priors[lx:ux], axis=0))**2
-            self.kf.R = np.diag(z_std)
-        self.kf.P *= .2
+        # Update variance
+        l = max(self.tick - self.vw, 1)
+        u = self.tick
+        if self.tick >= 2:
+            var = np.std(np.vstack(self.priors[l:u]), axis=0)
+        else:
+            var = np.asarray([0.4] * 4)
+        self.kf.Q = np.diag(var)
+        # Kalman filter predict
         self.kf.predict()
-        self.kf.update(state)
+        # Kalman filter update
+        self.kf.update(np.array(state))
+        # Get control action using estimated state
+        action = do_lqr(self.window, self.A, self.B, self.Q, self.R, self.kf.x)
         self.tick += 1
+        # store data
         data = {}
         labels = ['x', 'xd', 't', 'td']
         data.update(array_to_kv('est', labels, self.kf.x ))
-        return 0, data
-from filterpy.kalman.UKF import UnscentedKalmanFilter
-from filterpy.kalman.sigma_points import MerweScaledSigmaPoints
-class LQR_UKF(Controller):
-    def __init__(self, pend, dt, window, Q, R, smoothing):
-        self.w = window
-        self.tick=0
-        A = pend.jacA
-        B = pend.jacB
-        C, D = np.zeros((1, A.shape[0])), np.zeros((1, 1))
-        sys_disc = cont2discrete((A,B,C,D), dt, method='zoh')
-        self.A, self.B = sys_disc[0], np.atleast_2d(sys_disc[1])
-        self.Q = np.diag(Q)
-        self.R = np.atleast_2d(R)        
-        self.priors = []
-        self.W = 20
-        self.smoothing = smoothing
-        self.pend = pend
-
-    def policy(self, state, t, dt):
-        lx = max(self.tick - self.W, 1)
-        self.priors.append(state)
-        if self.tick == 0:
-            self.kfs = []
-            for i in range(4):
-                fx = lambda x, dt: np.sum(self.A[:,i] *x) 
-                hx = lambda x: x
-                kf = UnscentedKalmanFilter(dim_x = 1, dim_z = 1,
-                    fx = fx,
-                    hx = hx,
-                    dt = dt,
-                    points = MerweScaledSigmaPoints(1,1e-3,2.0,2.0),
-                )
-                kf.x = state[i]
-                kf.R = 1
-                self.kfs.append(kf)
-        if self.tick >= 2:
-            x =np.empty((4,), dtype=float)
-            z_std = np.std(np.stack(self.priors[lx:self.tick]),axis=0)
-            for i, (kf, s) in enumerate(zip(self.kfs, state)):
-                kf.predict()
-                kf.update(s, R=z_std[i]*self.smoothing)
-                x[i] = np.squeeze(kf.x)
-        else:
-            x = state
-        '''
-        quadform = lambda M, N: (M.T.dot(N) * M.T).sum(axis=1)
-        P = [None] * (self.w+1)
-        P[self.w] = self.Q
-        for k in range(self.w, 0, -1):
-            c1 = quadform(self.A, P[k])
-            c2 = np.linalg.pinv(self.R + quadform(self.B, P[k]))
-            c3 = (self.A.T @ P[k] @ self.B) @ c2 @ (self.B.T @ P[k] @ self.A)
-            P[k-1] = c1 - c3
-        K = [None] * self.w
-        u = [None] * self.w
-        for i in range(self.w):
-            c1 = -np.linalg.pinv(self.R + quadform(self.B, P[k]))
-            c2 = self.B.T @ P[i+1] @ self.A
-            K[i] = c1 @ c2
-            u[i] = K[i] @ (self.kf.x)
-        action = float(np.squeeze(u[0]))
-        '''
-        action = 0
-        self.tick += 1
-        data = {}
-        labels = ['x', 'xd', 't', 'td']
-        data.update(array_to_kv('est', labels, x ))
+        data.update(array_to_kv('var', labels, var))
         return action, data
 
+def quadform(x, H):
+    x = np.atleast_2d(x)
+    if not ( (x.shape[1] == 1) or (x.shape[1] == H.shape[1]) ):
+        raise ValueError('axis 1 doesn\'t match or x not a vector! x: {}, H: {}'.format(x.shape, H.shape))
+    return x.T @ H @ x
+
+def do_lqr(w, A, B, Q, R, x):
+    P = [None] * (w+1)
+    P[w] = Q
+    for k in range(w, 0, -1):
+        ApkB = A.T @ P[k] @ B
+        BpkA = B.T @ P[k] @ A
+        c3 = np.linalg.pinv(R + quadform(B, P[k]))
+        P[k-1] = quadform(A, P[k]) - ApkB @ c3 @ BpkA + Q
+    u = [None] * w
+    for k in range(w):
+        c1 = np.linalg.inv(R + quadform(B, P[k]))
+        c2 = B.T @ P[k] @ A
+        u[k] = c1 @ c2 @ x
+    return float(np.squeeze(u[0]))
