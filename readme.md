@@ -10,6 +10,7 @@ Example Notebooks (Links to Google Colab):
 + [PID Controller](https://colab.research.google.com/github/rland93/pendulum/blob/master/notebooks/PID.ipynb)
 + [PID From Scratch](https://colab.research.google.com/github/rland93/pendulum/blob/master/notebooks/PD_workshop.ipynb)
 + [LQR](https://colab.research.google.com/github/rland93/pendulum/blob/master/notebooks/LQR.ipynb)
++ [LQR with Unscented Kalman Filter for State Estimation](https://colab.research.google.com/github/rland93/pendulum/blob/master/notebooks/lqr_state_estimation.ipynb)
 + [LQR (With Gaussian Process Prediction)](https://colab.research.google.com/github/rland93/pendulum/blob/master/notebooks/lqr_gpr.ipynb)
 
 
