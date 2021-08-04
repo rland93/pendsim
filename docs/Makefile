@@ -6,7 +6,7 @@
 SPHINXOPTS    ?=
 SPHINXBUILD   ?= sphinx-build
 SOURCEDIR     = source
-BUILDDIR      = ../../pendulum_docs
+BUILDDIR      = ../../pendsim_docs
 PDFBUILDDIR	  = /tmp
 PDF           = ../manual.pdf
 

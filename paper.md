@@ -1,9 +1,35 @@
-Pend
+---
+title: 'pendsim: Developing, Simulating, and Visualizing Feedback Controlled Inverted Pendulum Dynamics'
+tags:
+  - Python
+  - control theory
+  - dynamics
+  - control
+  - engineering simulation
+authors:
+  - name: Mike Sutherland
+    orcid: 0000-0001-5394-2737
+    affiliation: 1
+  - name: David A. Copp
+    orcid: 0000-0002-5206-5223
+    affiliation: 1
+affiliations:
+ - name: Henry Samueli School of Engineering, University of California, Irvine
+   index: 1
+date: 04 August 2021
+---
 
 Summary
 -------
 
 This package is a companion tool for exploring dynamics, control, and machine learning for the canonical cart-and-pendulum system. It includes a software simulation of the cart-and-pendulum system, a visualizer tool to create animations of the simulated system, and sample implementations for controllers and state estimators. The package, written in Python, can be used on any platform, including in the browser. It gives the user a plug-and-play sandbox to design and analyze controllers with this example, and is compatible with Python's rich landscape of third-party scientific programming and machine learning libraries.
+
+Statement of need
+=================
+
+The evolution of dynamical systems can be difficult for students to visualize. Physical laboratory setups are expensive, time-consuming, and can only be used by a handful of students at a time. Virtual experiments have none of these downsides and can be used to augment course content, even for remote-only instruction. The ease of the virtual platform allows students to easily share their work, run experiments collaboratively or individually, and develop controllers or investigate system dynamics in a fast design-test loop. Instructors can use any tools available in the rich Python package ecosystem to design experiments tailored to their needs. Python allows the software to be used on any platform, including in the web browser. Powerful visualization tools (in the `matplotlib` python package) can be used to measure and record any part of the system.
+
+These attributes make pendsim a capable companion to any control or dynamical systems course material, in either a virtual or in-person context. 
 
 
 Example Usage
@@ -74,9 +100,9 @@ Several controllers, implemented in python. These include:
 
 -   Bang Bang controller
 
--   A PID controller
+-   PID controller
 
--   LQR controllers
+-   LQR controller
 
 -   MPC implementations (with package 'cvxpy')
 
@@ -87,11 +113,6 @@ Visualization ('viz.py')
 
 Finally, the results of a simulation can be visualized. The 'matplotlib' backend is used to draw an animation of the pendulum and any plots from the simulation. The visualization uses the results of the simulation and the pendulum to draw the pendulum, including the external and control forces applied to it. The animation module allows for the system to plot real-time simulation data (e.g., data used by the controller) side by side with the animation.
 
-Statement of need
-=================
+An example still from the animation can be seen here:
 
-The evolution of dynamical systems can be difficult for students to visualize. Physical laboratory setups are expensive, time-consuming, and can only be used by a handful of students at a time. Virtual experiments have none of these downsides and can be used to augment course content, even for remote-only instruction. The ease of the virtual platform allows students to easily share their work, run experiments collaboratively or individually, and develop controllers or investigate system dynamics in a fast design-test loop. Instructors can use any tools available in the rich Python package ecosystem to design experiments tailored to their needs. Python allows the software to be used on any platform, including in the web browser. Powerful visualization tools (in the `matplotlib` python package) can be used to measure and record any part of the system.
-
-This makes PendulumSandbox a capable companion to any control or dynamical systems course material, in either a virtual or in-person context. 
-
-
+![Animation Still](still.png)
