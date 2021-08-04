@@ -138,13 +138,14 @@ class Visualizer(object):
     def animate(
         self,
         pltdata={},
-        interval=10,
+        interval=30,
         draw_fbd=False,
         data_stretch=False,
         figsize=(8, 4.5),
+        blit=True,
     ):
         if pltdata:
-            fig, ax = plt.subplots(nrows=2, figsize=figsize)
+            fig, ax = plt.subplots(nrows=2, figsize=(figsize[0], figsize[1] * 2))
             ax0, ax1 = ax[0], ax[1]
         else:
             fig, ax0 = plt.subplots(figsize=figsize)
@@ -339,7 +340,7 @@ class Visualizer(object):
             _animate,
             frames=n_frames,
             init_func=_init,
-            blit=True,
+            blit=blit,
             interval=interval,
         )
 

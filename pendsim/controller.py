@@ -433,7 +433,7 @@ class PID_UKF(Controller):
         est = self.kf.x
         res = self.kf.y
 
-        action = self.do_pid(dt, self.kp, self.ki, self.kd, state)
+        action = self.do_pid(dt, self.kp, self.ki, self.kd, est)
         self.kf.predict(dt, **{"u": action})
 
         labels = ["x", "xd", "t", "td"]
