@@ -1,3 +1,9 @@
 .wy-nav-content {
-    max-width: 60em !important;
-    }
+    max-width: 60em;
+}
+
+img {
+    width: 50%;
+    display: block;
+    margin: auto;
+}
