@@ -4,6 +4,7 @@ from matplotlib import patches, text, lines
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import pandas as pd
+import math
 
 
 class Visualizer(object):
@@ -25,9 +26,9 @@ class Visualizer(object):
         slowly.      by default 2
     """
 
-    def __init__(self, data: pd.DataFrame, pend, speed: int = 2) -> None:
-
+    def __init__(self, data: pd.DataFrame, pend, dt, speed: int = 2) -> None:
         self.data, self.pend = data, pend
+        self.dt = dt
         self.speed = speed
         self.cart_w = np.sqrt(2 * self.pend.M) * 0.5
         self.cart_h = np.sqrt(1 / (2) * self.pend.M) * 0.5
@@ -138,12 +139,16 @@ class Visualizer(object):
     def animate(
         self,
         pltdata={},
-        interval=30,
+        interval=None,
         draw_fbd=False,
         data_stretch=False,
         figsize=(8, 4.5),
         blit=True,
     ):
+    #### Establish Interval
+        if interval is None:
+            interval = self.dt * 1000
+
         if pltdata:
             fig, ax = plt.subplots(nrows=2, figsize=(figsize[0], figsize[1] * 2))
             ax0, ax1 = ax[0], ax[1]
@@ -230,6 +235,7 @@ class Visualizer(object):
             return plist
 
         def _animate(i):
+
             i = np.floor(i * self.speed).astype(int)
 
             retobjs = []
@@ -335,7 +341,19 @@ class Visualizer(object):
             retobjs.extend([ground, cart, mass, line, ext_force, ctrl_force, time_text])
             return retobjs
 
-        return FuncAnimation(
+        anim_running = True
+
+        def onClick(event):
+            nonlocal anim_running
+            if anim_running:
+                anim.event_source.stop()
+                anim_running = False
+            else:
+                anim.event_source.start()
+                anim_running = True
+
+        fig.canvas.mpl_connect("button_press_event", onClick)
+        anim = FuncAnimation(
             fig,
             _animate,
             frames=n_frames,
@@ -343,6 +361,8 @@ class Visualizer(object):
             blit=blit,
             interval=interval,
         )
+
+        return anim
 
     def draw_cart_fbd(self, obj, f, direc, pos):
         direc = sign(f) * direc

@@ -44,8 +44,8 @@ class Pendulum(object):
         m: float,
         l: float,
         g: float = 9.81,
-        cfric: float = 0.1,
-        pfric: float = 0.05,
+        cfric: float = 0.0,
+        pfric: float = 0.0,
         initial_state: np.ndarray = np.array([0, 0, 0, 0]),
     ) -> None:
 
@@ -89,56 +89,21 @@ class Pendulum(object):
             x dot
         """
         # unpack variables
-        xd, theta, td, u = state[1], state[2], state[3], state[4]
-        m, M, l, g, cfric, pfric = (
-            self.m,
-            self.M,
-            self.l,
-            self.g,
-            self.cfric,
-            self.pfric,
-        )
-        cost, sint = np.cos(theta), np.sin(theta)
+        xd, t, td, u = state[1], state[2], state[3], state[4]
+        m, M, l, g, cfric, pfric = self.m, self.M, self.l, self.g, self.cfric, self.pfric
+        cost, sint = np.cos(t), np.sin(t)
+        
         # solve for derivatives
-        xdd = (g * m * sint * cost + u - m * l * td * td * sint) / (
-            M + m - m * cost * cost
-        )
-        tdd = (g * sint + xdd * cost) / l
+        xdd = (g*m*sint*cost+u-m*l*td*td*sint)/(M+m-m*cost*cost)
+        tdd = (g*sint+xdd*cost)/l
+        
         # frictions
-        xdd += -cfric * xd
-        tdd += -pfric * td
+        xdd += -1 * cfric*xd
+        tdd += -1 * pfric*td
+
         return np.array([xd, xdd, td, tdd, u])
 
-    def solve(
-        self, dt: float, system_state: np.ndarray, u: float, solve_args: dict = {}
-    ) -> Tuple[np.ndarray, float]:
-        """Given a system state, solve the ivp over interval `d
-
-        Parameters
-        ----------
-        dt : float
-            Timestep over which to solve ivp
-        system_state : np.ndarray
-            the 4-tuple system state [x, xdot, theta, thetadot]
-        u : float
-            external force applied to base
-        solve_args : dict, optional
-            arguments supplied to the solver, by default {}
-
-        Returns
-        -------
-        Tuple[np.ndarray, float]
-            tuple of (4-tuple system state, external force)
-        """
-        # roll state and u into a single array
-        y = np.empty((5))
-        y[:4] = system_state
-        y[4] = u
-        # solve system
-        sol = integrate.solve_ivp(self.system_dynamics, (0, dt), y, **solve_args)
-        return sol.y[:4, -1], sol.y[4, -1]
-
-    def get_energy(self, state: np.ndarray) -> Tuple[float, float, float]:
+    def get_energy(self, state: np.ndarray) -> Tuple[float, float]:
         """Get energy of a state.
 
         Parameters
@@ -148,18 +113,15 @@ class Pendulum(object):
 
         Returns
         -------
-        Tuple[float, float, float]
-            tuple of (kinetic, potential, total) energies.
+        Tuple[float, float]
+            tuple of (kinetic, potential) energies.
         """
         xd, t, td = state[1], state[2], state[3]
-        ke = (
-            0.5 * (self.m + self.M) * xd * xd
-            - self.m * self.l * xd * td * np.cos(t)
-            + 0.5 * self.m * self.l * self.l * td * td
-        )
+        M, m, l = self.M, self.m, self.l
+        ke = 0.5*(M+m)*xd*xd - m*l*xd*td*np.cos(t)+0.5*m*l*l*td*td
         # potential energy
-        pe = self.m * self.g * self.l * np.cos(t)
-        return ke, pe, ke + pe
+        pe = m*self.g*l*np.cos(t)
+        return ke, pe
 
     def calculate_reaction_forces(
         self, state: np.ndarray, xdd: float, tdd: float
@@ -264,13 +226,11 @@ class Simulation(object):
             else:
                 action, controller_data = controller.policy(state, self.dt)
             data.update(controller_data)
-
             # Simulation Data
-            (
-                data[("energy", "kinetic")],
-                data[("energy", "potential")],
-                data["energy", "total"],
-            ) = pendulum.get_energy(state)
+            ke, pe = pendulum.get_energy(state)
+            data[("energy", "kinetic")] = ke
+            data[("energy", "potential")] = pe
+            data[("energy", "total")] = ke + pe
             data[("forces", "forces")] = force
             data[("control action", "control action")] = action
 
@@ -289,8 +249,6 @@ class Simulation(object):
             pRx, pRy, pG, cRy, cRx, cG, cN = pendulum.calculate_reaction_forces(
                 state, xdd, tdd
             )
-            data[("state", "xdd")] = xdd
-            data[("state", "tdd")] = tdd
             data[("forces", "pRx")] = pRx
             data[("forces", "pRy")] = pRy
             data[("forces", "pG")] = pG
@@ -299,10 +257,13 @@ class Simulation(object):
             data[("forces", "cG")] = cG
             data[("forces", "cN")] = cN
 
-            state, _ = pendulum.solve(self.dt, state, force)
+            y = list(state) + [force]
+            sol = integrate.solve_ivp(pendulum.system_dynamics, (0, self.dt), y)
+            state = sol.y[:4,-1]
+
             for k, v in data.items():
                 datas[k].append(v)
-
+            
         return pd.DataFrame(datas, index=times)
 
     def simulate_multiple(self, pendulums, controllers, parallel=True):
