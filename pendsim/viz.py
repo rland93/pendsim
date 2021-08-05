@@ -145,7 +145,6 @@ class Visualizer(object):
         figsize=(8, 4.5),
         blit=True,
     ):
-    #### Establish Interval
         if interval is None:
             interval = self.dt * 1000
 
@@ -211,7 +210,12 @@ class Visualizer(object):
                 plots.append(plot)
             elif attrs["type"] == "scatter":
                 plot = ax1.scatter(
-                    [], [], label=attrs["label"], c=attrs["color"], edgecolors=None
+                    [],
+                    [],
+                    label=attrs["label"],
+                    c=attrs["color"],
+                    edgecolors=None,
+                    marker=".",
                 )
                 plots.append(plot)
             else:

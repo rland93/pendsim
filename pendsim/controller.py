@@ -343,6 +343,7 @@ class PID(Controller):
         self.kp, self.ki, self.kd = pid
         self.integrator = 0
         self.prev_err = 0
+        self.first = True
 
     def policy(self, state: np.ndarray, dt: float) -> Tuple[float, dict]:
         """PID policy. This just calls `do_pid` on the state, but you can
