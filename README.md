@@ -23,6 +23,8 @@ Requires Python 3.
 
 Several Notebooks are available. They can be run on the cloud using Google Colab:
 
-[Advanced Plotting Example](https://colab.research.google.com/github/rland93/pendsim/blob/master/notebooks/tutorial_plot_inline.ipynb)
-[Linearization Example](https://colab.research.google.com/github/rland93/pendsim/blob/master/notebooks/linearization.ipynb)
-[PID Tuning Example](https://colab.research.google.com/github/rland93/pendsim/blob/master/notebooks/PID.ipynb)
++ [Advanced Plotting Example](https://colab.research.google.com/github/rland93/pendsim/blob/master/notebooks/tutorial_plot_inline.ipynb)
+
++ [Linearization Example](https://colab.research.google.com/github/rland93/pendsim/blob/master/notebooks/linearization.ipynb)
+
++ [PID Tuning Example](https://colab.research.google.com/github/rland93/pendsim/blob/master/notebooks/PID.ipynb)
