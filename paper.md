@@ -29,7 +29,7 @@ The package may prove useful for a wide range of curricula, from introductory me
 Statement of need
 =================
 
-Curricula in the study of dynamical systems and control can be quite abstract and mathematical. The effects of changing system, control, or modeling parameters can be difficult to grasp when a student only examines the abstract mathematical model of a system. Because of this, direct experimentation is a natural way to better understand how these systems evolve over time given different controllers and parameters.
+Curricula in the study of dynamical systems and control can be quite abstract. The effects of changing system, control, or modeling parameters are difficult to grasp when a student only examines the abstract mathematical model of a system. Because of this, direct experimentation is a natural way to better understand how these systems evolve over time given different controllers and parameters.
 
 Physical laboratory setups are expensive, time-consuming, and can only be used by a handful of students at a time. Virtual experiments have none of these downsides and can be used to augment course content, even for remote-only instruction. The virtual platform allows students to easily share their work, run experiments collaboratively or individually, and develop controllers or investigate system dynamics in a fast design-test loop. 
 
@@ -127,7 +127,9 @@ Several controller implementations are pre-built. These include:
 
 -   Model-Predictive Controller (MPC) implementations with package 'cvxpy'
 
--   State estimation using an Unscented Kalman Filter is implemented (with package `filterpy`).
+-   State estimation using an Unscented Kalman Filter is implemented (with package `filterpy`)
+
+-   State prediction with Gaussian Process Regression (with package `scikit-learn`)
 
 Additionally, any control policy can be implemented by the user, by creating a new class. This allows for open-ended controller design. Controllers can dump data into the simulation results, so that intermediate control policy steps are accessible to the final results of the simulation.
 
@@ -135,9 +137,13 @@ Additionally, any control policy can be implemented by the user, by creating a n
 
 Finally, the results of a simulation can be visualized. The 'matplotlib' backend is used to draw an animation of the pendulum and any plots from the simulation. The visualization uses the results of the simulation and the pendulum to draw the pendulum, including the external and control forces applied to it. The animation module allows for the system to plot real-time simulation data (e.g., data used by the controller) side by side with the animation.
 
+The results of the simulation, stored in datastructures defined by the python package `pandas`, are easy to query and plot with `matplotlib`. This makes generating sophisticated plots of simulation attributes easy.
+
 **Example Notebooks:**
 
 -   Basic example for explaining the free-response system model
+
+-   The concept of Stability
 
 -   Basic PID tuning example
 
@@ -145,4 +151,6 @@ Finally, the results of a simulation can be visualized. The 'matplotlib' backend
 
 -   Applying a state estimator for better control
 
--   Pendulum Swing-up strategy
+-   Pendulum Swing-up strategy example
+
+-   State prediction with Gaussian Process Regression example
