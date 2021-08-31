@@ -7,10 +7,19 @@ tags:
   - control
   - engineering simulation
 authors:
+
   - name: Mike Sutherland
     orcid: 0000-0001-5394-2737
+    affiliation: 1
+
   - name: David A. Copp
     orcid: 0000-0002-5206-5223
+    affiliation: 1
+
+affiliations:
+  - name: University of California, Irvine
+    index: 1
+
 date: 31 August 2021
 ---
 
