@@ -77,7 +77,9 @@ visu = viz.Visualizer(results, pend)
 ani = visu.animate()
 ```
 An example still from the animation can be seen here:
+
 ![Animation Still](forces_pend_anim_still.png)
+
 In this case, the force pushes to the right, while the controller pushes to the left to stabilize the pendulum.
 
 
