@@ -9,11 +9,9 @@ tags:
 authors:
   - name: Mike Sutherland
     orcid: 0000-0001-5394-2737
-    affiliation: 1
   - name: David A. Copp
     orcid: 0000-0002-5206-5223
-    affiliation: 1
-date: 04 August 2021
+date: 31 August 2021
 ---
 
 Summary
