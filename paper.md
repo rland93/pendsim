@@ -137,7 +137,7 @@ Several controller implementations are pre-built. These include:
 
 -   Linear Quadratic Regulator (LQR) controller
 
--   State estimation using an Unscented Kalman Filter (UKF) is implemented (with package `filterpy` [@labbe:2021] )
+-   State estimation using an Unscented Kalman Filter (UKF) is implemented (with package `filterpy` [@Labbe:2021] )
 
 Additionally, any control policy can be implemented by the user, by creating a new class. This allows for open-ended controller design. Controllers can dump data into the simulation results so that intermediate control inputs are accessible to the final results of the simulation.
 
