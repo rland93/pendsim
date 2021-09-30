@@ -17,10 +17,11 @@ authors:
     affiliation: 1
 
 affiliations:
-  - name: University of California, Irvine
+  - name: Department of Mechanical and Aerospace Engineering, University of California, Irvine
     index: 1
 
-date: 31 August 2021
+date: 30 Sept 2021
+bibliography: paper.bib
 ---
 
 Summary
@@ -45,7 +46,7 @@ Example Usage
 
 The software is a virtual laboratory. Users create an experiment by specifying a set of parameters: the pendulum (mass, length, friction, and so on), the simulation parameters (such as external forces). A controller policy designed by the user can then be applied to the system in the simulation. Finally, the user can view the results of the simulation. The ability to rapidly create and run experiments allows for fast design-test loops.
 
-This simple example shows the ease of creating, modeling, and visualizing a PID controller:
+This simple example shows the ease of creating, modeling, and visualizing a proportional-integral-derivative controller:
 
 ```python
 # define simulation parameters
@@ -83,12 +84,8 @@ results = simu.simulate(pend, cont)
 visu = viz.Visualizer(results, pend)
 ani = visu.animate()
 ```
-An example still from the animation can be seen here:
 
-![A still from the animation module. Here, ](forces_pend_anim_still.png)
-
-In this case, the force pushes to the right, while the controller pushes to the left to stabilize the pendulum.
-
+![A still from the animation module. Here, a force pushes to the right (shown in red) while the controller pushes to the left to stabilize the pendulum (shown in blue).](forces_pend_anim_still.png)
 
 Rich plots of any system attribute are easy to generate:
 ```python
@@ -105,7 +102,7 @@ ax.set_xlabel("Time (s)")
 ax.set_title("Pendulum Angle")
 plt.show()
 ```
-![system plots](paper_angle_plot.png)
+![An example of a plot of the pendulum angle over time. Such plots are easy to generate from outputs of the simulation.](paper_angle_plot.png)
 
 
 
@@ -129,8 +126,8 @@ This simulates the system dynamics and allows for external forces on the pendulu
 
 -   a controller to use, if any
 
-Controllers (`controller.py`)
------------------------------
+Controllers, Estimators, etc. (`controller.py`)
+-----------------------------------------------
 
 Several controller implementations are pre-built. These include:
 
@@ -140,14 +137,14 @@ Several controller implementations are pre-built. These include:
 
 -   Linear Quadratic Regulator (LQR) controller
 
--   State estimation using an Unscented Kalman Filter is implemented (with package `filterpy`)
+-   State estimation using an Unscented Kalman Filter (UKF) is implemented (with package `filterpy` [@labbe:2021] )
 
-Additionally, any control policy can be implemented by the user, by creating a new class. This allows for open-ended controller design. Controllers can dump data into the simulation results so that intermediate control values are accessible to the final results of the simulation.
+Additionally, any control policy can be implemented by the user, by creating a new class. This allows for open-ended controller design. Controllers can dump data into the simulation results so that intermediate control inputs are accessible to the final results of the simulation.
 
 Visualization (`viz.py`):
 -------------------------
 
-Finally, the results of a simulation can be visualized. The 'matplotlib' backend is used to draw an animation of the pendulum and any plots from the simulation. The visualization uses the results of the simulation to draw the pendulum, including the external and control forces applied to it. The animation module allows for the system to plot real-time simulation data (e.g., data used by the controller) side by side with the animation.
+Finally, the results of a simulation can be visualized. The 'matplotlib' backend is used to draw an animation of the inverted pendulum and any plots from the simulation. The visualization uses the results of the simulation to draw the inverted pendulum, including the external and control forces applied to it. The animation module allows for the system to plot real-time simulation data (e.g., data used by the controller) side by side with the animation.
 
 The results of the simulation, stored in datastructures defined by the package `pandas`, are easy to query and plot with `matplotlib`. This makes generating sophisticated plots of simulation attributes easy.
 
