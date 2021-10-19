@@ -1,5 +1,6 @@
 import pendsim.sim, pendsim.utils
 import copy
+from scipy import integrate
 
 import numpy as np
 from scipy.signal import cont2discrete
@@ -393,9 +394,38 @@ class PID_UKF(Controller):
         # UKF Parameters
         self.var_t = var_t
         self.A, self.B = self.get_linear_sys(pend.jacA, pend.jacB, dt)
+        self.pend = pend
+
+        def sys_dynamics(t0, x):
+            # unpack variables
+            _, xd, t, td, u = x[0], x[1], x[2], x[3], x[4]
+            m, M, l, g, cfric, pfric = (
+                self.pend.m,
+                self.pend.M,
+                self.pend.l,
+                self.pend.g,
+                self.pend.cfric,
+                self.pend.pfric,
+            )
+            cost, sint = np.cos(t), np.sin(t)
+            # system dynamics
+            xdd = (g * m * sint * cost + u - m * l * td * td * sint) / (
+                M + m - m * cost * cost
+            )
+            tdd = (g * sint + xdd * cost) / l
+
+            # viscous friction
+            xdd += -1 * cfric * xd
+            tdd += -1 * pfric * td
+            # [state] + [u] is returned for the solver
+            return np.array([xd, xdd, td, tdd, u])
 
         def fx(x, dt, u=0):
-            return np.dot(self.A, x) + np.dot(self.B, u).T
+            # we just tack u onto the end so one arg is passed into the solver
+            x_in = np.concatenate((x, np.atleast_1d(u)), axis=0)
+            # solve IVP
+            sol = integrate.solve_ivp(sys_dynamics, (0, dt), x_in)
+            return sol.y[:4, -1]
 
         def hx(x):
             return x
@@ -428,7 +458,6 @@ class PID_UKF(Controller):
             var = np.cov(prior.T)
         else:
             var = np.eye(4) * 1
-
         self.kf.Q = var ** 2
         self.kf.update(state)
         est = self.kf.x
