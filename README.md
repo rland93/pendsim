@@ -7,10 +7,10 @@ It uses rk45 to simulate a dynamic model of the simple inverse pendulum on a car
 For more details on the package features, as well as how it can be used in an educational context, see the pending JOSE submission: ([Markdown](https://github.com/rland93/pendsim/paper.pdf)), ([PDF](https://github.com/rland93/pendsim/paper.pdf))
 
 ## Installation
-This package is published on PyPi. Install with `pip`:
+Install with `pip`:
 
 ```bash
-pip install pendsim
+pip install git+https://github.com/rland93/pendsim.git
 ```
 
 Requires Python 3.
