@@ -20,7 +20,7 @@ affiliations:
   - name: Department of Mechanical and Aerospace Engineering, University of California, Irvine
     index: 1
 
-date: 30 Sept 2021
+date: 10 Nov 2021
 bibliography: paper.bib
 ---
 
@@ -29,7 +29,7 @@ Summary
 
 This package is a companion tool for exploring dynamics, control, and machine learning for the canonical cart-and-pendulum system. It includes a software simulation of the cart-and-pendulum system, a visualizer tool to create animations of the simulated system, and sample implementations for controllers and state estimators. The package, written in Python, can be used on any platform, including in the browser. It gives the user a plug-and-play sandbox to design and analyze controllers for the inverted pendulum, and is compatible with Python's rich landscape of third-party scientific programming and machine learning libraries.
 
-The package is useful for a wide range of curricula, from introductory mechanics to graduate-level control theory. The inverted pendulum is a canonical example in control theory (See, e.g. `@Astrom:2008`). A set of example notebooks is provided as a starting point for this range of topics.
+The package is useful for a wide range of curricula, from introductory mechanics to graduate-level control theory. The inverted pendulum is a canonical example in control theory (See, e.g. [@Astrom:2008]). A set of example notebooks is provided as a starting point for this range of topics.
 
 Statement of need
 =================
@@ -139,14 +139,16 @@ Several controller implementations are pre-built. These include:
 
 -   State estimation using an Unscented Kalman Filter (UKF) is implemented (with package `filterpy` [@Labbe:2021] )
 
+-   Energy Swing-Up Controller
+
 Additionally, any control policy can be implemented by the user, by creating a new class. This allows for open-ended controller design. Controllers can dump data into the simulation results so that intermediate control inputs are accessible to the final results of the simulation.
 
 Visualization (`viz.py`):
 -------------------------
 
-Finally, the results of a simulation can be visualized. The 'matplotlib' backend is used to draw an animation of the inverted pendulum and any plots from the simulation. The visualization uses the results of the simulation to draw the inverted pendulum, including the external and control forces applied to it. The animation module allows for the system to plot real-time simulation data (e.g., data used by the controller) side by side with the animation.
+Finally, the results of a simulation can be visualized. The 'matplotlib' [@Hunter:2007] backend is used to draw an animation of the inverted pendulum and any plots from the simulation. The visualization uses the results of the simulation to draw the inverted pendulum, including the external and control forces applied to it. The animation module allows for the system to plot real-time simulation data (e.g., data used by the controller) side by side with the animation.
 
-The results of the simulation, stored in datastructures defined by the package `pandas`, are easy to query and plot with `matplotlib`. This makes generating sophisticated plots of simulation attributes easy.
+The results of the simulation are easy to query and plot. This makes investigating the simulation easy and intuitive.
 
 Example Notebooks:
 ------------------
@@ -160,3 +162,5 @@ The repository includes several notebooks which show the capabilities of the pac
 -   [PID Tuning](https://colab.research.google.com/github/rland93/pendsim/blob/master/notebooks/PID.ipynb)
 
 -   [Applying a state estimator for better control](https://colab.research.google.com/github/rland93/pendsim/blob/master/notebooks/state_estimation.ipynb)
+
+-   [Swing-up by Energy Control](https://colab.research.google.com/github/rland93/pendsim/blob/master/notebooks/swingup.ipynb)
