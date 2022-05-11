@@ -26,24 +26,57 @@ bibliography: paper.bib
 
 # Summary
 
-This package is a companion tool for exploring dynamics, control, and machine learning for the canonical cart-and-pendulum system. It includes a software simulation of the cart-and-pendulum system, a visualizer tool to create animations of the simulated system, and sample implementations for controllers and state estimators. The package, written in Python, can be used on any platform, including in the browser. It gives the user a plug-and-play sandbox to design and analyze controllers for the inverted pendulum, and is compatible with Python's rich landscape of third-party scientific programming and machine learning libraries.
+This package is a companion tool for exploring dynamics, control, and machine
+learning for the canonical cart-and-pendulum system. It includes a software
+simulation of the cart-and-pendulum system, a visualizer tool to create
+animations of the simulated system, and sample implementations for controllers
+and state estimators. The user can use any platform or the browser to
+run the `pendsim` Python package. It gives the user a plug-and-play sandbox
+to design and analyze controllers for the inverted pendulum, and is compatible
+with Python's rich landscape of third-party scientific programming and machine
+learning libraries.
 
-The package is useful for a wide range of curricula, from introductory mechanics to graduate-level control theory. The inverted pendulum is a canonical example in control theory (See, e.g. [@Astrom:2008]). A set of example notebooks is provided as a starting point for this range of topics.
+The package is useful for a wide range of curricula, from introductory
+mechanics to graduate-level control theory. The inverted pendulum is a
+canonical example in control theory (See, e.g. [@Astrom:2008]). A set of
+example notebooks provide a starting point for introductory and
+graduate-level topics.
 
 # Statement of need
 
-Curricula in the study of dynamical systems and control can be quite abstract. The effects of changing system, control, or modeling parameters are difficult to grasp when a student only examines the abstract mathematical model of a system. Because of this, direct experimentation is a natural way to better understand how these systems evolve over time given different controllers and parameters.
+Curricula in the study of dynamical systems and control can be quite
+abstract. When a student studies the abstract mathematical model of a system they
+have difficulty seeing the effects of control and modeling parameters.
+Because of this, direct experimentation is a natural way to better
+understand how these systems evolve over time given different
+controllers and parameters.
 
-Physical laboratory setups are expensive, time-consuming, and can only be used by a handful of students at a time. Virtual experiments have none of these downsides and can be used to augment course content, even for remote-only instruction. The virtual platform allows students to easily share their work, run experiments collaboratively or individually, and develop controllers or investigate system dynamics in a fast design-test loop. 
+Physical laboratory setups are expensive, time-consuming, and limited to
+four or five students at a time. Virtual experiments are cheap,
+easy-to-setup, and accomodate hundreds of students at a time.  Virtual
+experiments can augment course content, even for remote-only
+instruction.  The virtual platform allows students to share their
+work, run experiments collaboratively or individually, and develop
+controllers or investigate system dynamics in a fast design-test loop. 
 
-Instructors can design experiments in `pendsim`, and subsequently measure any system parameter or variable, including the animation of the system. The package includes visualizations and pre-built controllers. It is a capable companion to any control or dynamical systems course material, in either a virtual, hybrid, or in-person context. 
+Instructors can design experiments in `pendsim`, and subsequently
+measure any system parameter or variable, including the animation of the
+system. The package includes visualizations and pre-built controllers.
+The package is a great companion to any control or dynamical systems course
+material, in either a virtual, hybrid, or in-person context. 
 
 
 # Example Usage
 
-The software is a virtual laboratory. Users create an experiment by specifying a set of parameters: the pendulum (mass, length, friction, and so on), and the simulation parameters (such as external forces). A control policy designed by the user can then be applied to the system in the simulation. Finally, the user can view the results of the simulation. The ability to rapidly create and run experiments allows for fast design-test loops.
+The software is a virtual laboratory. Users create an experiment by
+specifying a set of parameters: the pendulum (mass, length, friction,
+and so on), and the simulation parameters (such as external forces). The
+user can then design and apply a control policy in the simulation.
+Finally, the user can view the results of the simulation. The ability to
+rapidly create and run experiments allows for fast design-test loops.
 
-This simple example (Example 1) shows the ease of creating, modeling, and visualizing a proportional-integral-derivative controller:
+This simple example (Example 1) shows the ease of creating, modeling,
+and visualizing a proportional-integral-derivative controller:
 
 ```python
 ### Example 1
@@ -83,9 +116,14 @@ visu = viz.Visualizer(results, pend)
 ani = visu.animate()
 ```
 
-![A still from the animation module. Here, a force pushes to the right (shown in red) while the controller pushes to the left to stabilize the pendulum (shown in blue).\label{fig:example1}](forces_pend_anim_still.png)
+![A still from the animation module. Here, a force pushes to the right
+(shown in red) while the controller pushes to the left to stabilize the
+pendulum (shown in
+blue).\label{fig:example1}](forces_pend_anim_still.png)
 
-Rich plots of any system attribute are easy to generate. This example shows the plot in \autoref{fig:example2}:
+Rich plots of any system attribute are easy to generate. This example
+shows the plot in \autoref{fig:example2}:
+
 ```python
 ### Example 2
 import matplotlib.pyplot as plt
@@ -101,7 +139,12 @@ ax.set_xlabel("Time (s)")
 ax.set_title("Pendulum Angle")
 plt.show()
 ```
-![This plot (generated by the code in Example 2) shows the angle of the pendulum over time as it evolves in simulation. The black dots show the measured angle, while the line shows an Unscented Kalman Filter estimation of the angle.  Such plots are easy to generate from outputs of the simulation.\label{fig:example2}](paper_angle_plot.png){ width=60% }
+![This plot (generated by the code in Example 2) shows the angle of the
+pendulum over time as it evolves in simulation. The black dots show the
+measured angle, while the line shows an Unscented Kalman Filter
+estimation of the angle.  Such plots are easy to generate from outputs
+of the simulation.\label{fig:example2}](paper_angle_plot.png){ width=60%
+}
 
 # Package Features
 
@@ -131,22 +174,35 @@ Several controller implementations are pre-built. These include:
 
 -   Linear Quadratic Regulator (LQR) controller
 
--   State estimation using an Unscented Kalman Filter (UKF) is implemented (with package `filterpy` [@Labbe:2021] )
+-   State estimation using an Unscented Kalman Filter (UKF) (implemented with package `filterpy` [@Labbe:2021] )
 
 -   Energy Swing-Up Controller
 
-Additionally, any control policy can be implemented by the user, by creating a new class. This allows for open-ended controller design. Controllers can dump data into the simulation results so that intermediate control inputs are accessible to the final results of the simulation.
+The user can implement any control policy by creating a new class
+[??link to
+docs??](https://github.com/openjournals/jose-reviews/issues/168). Users
+can test new open-ended controller designs.  Controllers can dump data
+into the simulation results so that intermediate control inputs are
+accessible to the final results of the simulation.
 
 ## Visualization (`viz.py`):
 
 
-Finally, the results of a simulation can be visualized. The 'matplotlib' [@Hunter:2007] backend is used to draw an animation of the inverted pendulum and any plots from the simulation. The visualization uses the results of the simulation to draw the inverted pendulum, including the external and control forces applied to it. The animation module allows for the system to plot real-time simulation data (e.g., data used by the controller) side by side with the animation.
+The simulation results are visualized in `viz.py`. The 'matplotlib'
+[@Hunter:2007] backend draws animations of the inverted
+pendulum and plots from the simulation. The visualization uses the
+results of the simulation to draw the inverted pendulum, including the
+external and control forces applied to it. The animation module allows
+for the system to plot real-time simulation data (e.g., data used by the
+controller) side by side with the animation.
 
-The results of the simulation are easy to query and plot. This makes investigating the simulation easy and intuitive.
+The results of the simulation are easy to query and plot. This makes
+investigating the simulation easy and intuitive.
 
 ## Example Notebooks:
 
-The repository includes several notebooks which show the capabilities of the package. Notebooks hosted on Google Colab are linked here:
+The repository includes several notebooks which show the capabilities of
+the package. Example notebooks are hosted on Google Colab:
 
 -   [Animated Plots](https://colab.research.google.com/github/rland93/pendsim/blob/master/notebooks/tutorial_plot_inline.ipynb)
 
