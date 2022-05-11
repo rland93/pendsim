@@ -111,7 +111,7 @@ about swing completely back up.
 
 .. code:: python
 
-    visu = viz.Visualizer(results, pend, speed=1)
+    visu = viz.Visualizer(results, pend, dt = dt, speed=1)
 
 We can confirm this by creating a vizualizer using the ``Visualizer``
 class. We instantiate it with the same ``pend`` object, and the results
