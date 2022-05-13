@@ -13,7 +13,11 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath(os.path.join("..", "..")))
+sys.path.insert(0, os.path.abspath(".."))
+try:
+    import pendsim
+except ImportError:
+    raise ImportError("check that `pendsim` is available to your system path.")
 
 # -- Project information -----------------------------------------------------
 
@@ -22,8 +26,6 @@ copyright = "2021, Mike Sutherland"
 author = "Mike Sutherland"
 
 # The full version, including alpha/beta/rc tags
-import pendsim
-
 release = pendsim.__version__
 
 
@@ -33,19 +35,24 @@ release = pendsim.__version__
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    "sphinx.ext.autosummary",
+    "autoapi.extension",
     "sphinx.ext.autodoc",
-    "sphinx.ext.coverage",
+    "sphinx.ext.autosummary",
     "sphinx.ext.doctest",
-    "sphinx.ext.intersphinx",
     "sphinx.ext.mathjax",
-    "sphinx.ext.todo",
     "sphinx.ext.viewcode",
+    "sphinx.ext.githubpages",
+    "sphinx.ext.intersphinx",
     "numpydoc",
     "nb2plots",
     "nbsphinx",
     "nbsphinx_link",
 ]
+
+
+autoapi_type = "python"
+autoapi_dirs = ["../pendsim/"]
+
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
@@ -53,10 +60,18 @@ templates_path = ["_templates"]
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = []
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+autodoc_mock_imports = ["scipy", "numpy", "matplotlib", "cvxpy", "filterpy"]
 numpydoc_show_class_members = False
 
 # -- Options for HTML output -------------------------------------------------
 
 html_theme = "furo"
 html_static_path = ["_static"]
+
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3/", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
+    "matplotlib": ("https://matplotlib.org/stable", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/reference", None),
+}

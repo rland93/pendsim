@@ -1,10 +1,10 @@
 pendsim: A Pendulum-on-a-cart Simulator!
 ========================================
+
 .. toctree::
    :maxdepth: 2
    
    Install <install>
-   Reference <reference>
    Tutorial <tutorial>
    Examples <examples/index>
    Write Your Own Controller <customctl>
@@ -12,6 +12,9 @@ pendsim: A Pendulum-on-a-cart Simulator!
 pendsim is a package for exploring dynamics, control, and state estimation
 techniques, in the context of every control theorist's favorite system: the 
 inverted pendulum-on-a-cart problem!
+
+.. note::
+   For a summary of the package features, as well as how it can be used in an educational context, see the pending `Journal of Open Source Education (JOSE) submission. <https://github.com/rland93/pendsim/paper.pdf>`_
 
 .. image:: _static/diagram.png
 
@@ -51,4 +54,4 @@ recommend the `Python documentation <https://docs.python.org/3/>`_ or the UC Irv
 License
 -------
 
-.. include:: ../../LICENSE
+.. include:: ../LICENSE
