@@ -13,7 +13,14 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath(".."))
+
+here = os.path.dirname(__file__)
+repo = os.path.join(
+    here,
+    "..",
+)
+sys.path.insert(0, repo)
+
 try:
     import pendsim
 except ImportError:
@@ -75,3 +82,5 @@ intersphinx_mapping = {
     "matplotlib": ("https://matplotlib.org/stable", None),
     "scipy": ("https://docs.scipy.org/doc/scipy/reference", None),
 }
+
+nbsphinx_link_target_root = repo

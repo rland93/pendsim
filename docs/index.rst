@@ -6,8 +6,12 @@ pendsim: A Pendulum-on-a-cart Simulator!
    
    Install <install>
    Tutorial <tutorial>
-   Examples <examples/index>
    Write Your Own Controller <customctl>
+   Advanced Plotting <PlottingTutorial>
+   Example: Linearization <Linearization>
+   Example: PID Control <PID>
+   Example: Swing-Up <SwingUp>
+   Example: State Estimation <StateEstimation>
 
 pendsim is a package for exploring dynamics, control, and state estimation
 techniques, in the context of every control theorist's favorite system: the 
