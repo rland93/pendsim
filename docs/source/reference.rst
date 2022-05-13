@@ -41,7 +41,7 @@ Controller Implementations are stored in `controller.py`. The base class for all
 Advanced Controllers
 --------------------
 
-.. autoclass:: pendsim.controlller.LQRSwingup
+.. autoclass:: pendsim.controller.LQRSwingup
     :members:
 
 .. autoclass:: pendsim.controller.LQR_UKF

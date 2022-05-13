@@ -1,12 +1,13 @@
 pendsim: A Pendulum-on-a-cart Simulator!
-=================================================
+========================================
 .. toctree::
    :maxdepth: 2
-   :caption: contents:
-
+   
    Install <install>
    Reference <reference>
    Tutorial <tutorial>
+   Examples <examples/index>
+   Write Your Own Controller <customctl>
 
 pendsim is a package for exploring dynamics, control, and state estimation
 techniques, in the context of every control theorist's favorite system: the 
