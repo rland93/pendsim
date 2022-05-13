@@ -38,7 +38,7 @@ jobs:
     - uses: ammaraskar/sphinx-action@master
       with:
         pre-build-command: "pip install cvxpy matplotlib scipy filterpy 
-        pandas tqdm notebook nbsphinx-link nbsphinx numpydoc nb2plots sphinx-autoapi"
+        pandas tqdm notebook nbsphinx-link nbsphinx numpydoc nb2plots sphinx-autoapi numpy"
         docs-folder: "docs/"
     # Great extra actions to compose with:
     # Create an artifact of the html output.
