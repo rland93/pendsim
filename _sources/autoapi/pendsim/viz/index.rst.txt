@@ -1,0 +1,258 @@
+:py:mod:`pendsim.viz`
+=====================
+
+.. py:module:: pendsim.viz
+
+.. autoapi-nested-parse::
+
+   
+   ..
+       !! processed by numpydoc !!
+
+
+Module Contents
+---------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   pendsim.viz.Visualizer
+
+
+
+Functions
+~~~~~~~~~
+
+.. autoapisummary::
+
+   pendsim.viz.sign
+
+
+
+.. py:class:: Visualizer(data: pandas.DataFrame, pend, dt, speed: int = 2)
+
+   Bases: :py:obj:`object`
+
+   
+   The visualizer object stores parameters and methods for generating an
+   animation of a particular run.
+
+
+   :Parameters:
+
+       **data** : pd.DataFrame
+           Dataframe containing simulation data
+
+       **pend** : pendsim.sim.Pendulum
+           Pendulum object to visualize. The animation scales with the length and masses
+           of the pendulum object. To generate an accurate visualization, just pass the same
+           pendulum that was simulated.
+
+       **speed** : int, optional
+           The number of frames to "skip" in the animation. Real-time animation is rather
+           difficult with matplotlib, because the draw speed of the animator varies between
+           systems. So if your simulation timestep is very small, the animation can run quite
+           slowly.      by default 2
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+   .. py:method:: _draw_cart(self, cart: matplotlib.patches.Rectangle, mass: matplotlib.patches.Circle, line: matplotlib.lines.Line2D, xi: float, thetai: float)
+
+      
+      Draw cart on `cart`, `mass`, and `line` objects with cart position xi and
+      pendulum position thetai.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+   .. py:method:: _draw_objs(self, lc='black', ls='-')
+
+      
+      Create objects to draw
+
+
+      :Parameters:
+
+          **lc** : str, optional
+              matplotlib Line color, by default "black"
+
+          **ls** : str, optional
+              matplotlib Line style, by default "-"
+
+      :Returns:
+
+          Tuple[patches.Rectangle, patches.Circle, patches.Line2D]
+              Tuple of the cart, pendulum, and connecting line objects
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+   .. py:method:: draw_force(self, obj, u, cart_x, ydist)
+
+      
+      Draw the external force on the cart.
+
+
+      :Parameters:
+
+          **obj** : matplotlib FancyArrow object
+              The force line object
+
+          **u** : float
+              magnitude of force to represent
+
+          **cart_x** : float
+              cart position
+
+          **ydist** : float
+              distance vertically "up" the cart to draw the force. i.e. 0 draws
+              the force at the very bottom of the cart along the ground, 1.0 draws
+              the force at the very top of the cart
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+   .. py:method:: animate(self, pltdata={}, interval=None, draw_fbd=False, data_stretch=False, figsize=(8, 4.5), blit=True)
+
+      
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+   .. py:method:: draw_cart_fbd(self, obj, f, direc, pos)
+
+      
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+   .. py:method:: draw_pend_fbd(self, obj, f, direc, pos)
+
+      
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+.. py:function:: sign(x)
+
+   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

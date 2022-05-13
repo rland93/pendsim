@@ -1,0 +1,926 @@
+<!doctype html>
+<html class="no-js">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../genindex.html" /><link rel="search" title="Search" href="../../search.html" />
+
+    <meta name="generator" content="sphinx-4.5.0, furo 2022.04.07"/>
+        <title>pendsim.controller - pendsim 1.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/furo.css?digest=68f4518137b9aefe99b631505a2064c3c42c9852" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../../index.html"><div class="brand">pendsim 1.1.0 documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../../index.html">
+  
+  
+  <span class="sidebar-brand-text">pendsim 1.1.0 documentation</span>
+  
+</a><form class="sidebar-search-container" method="get" action="../../search.html" role="search">
+  <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Install</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorial.html">Tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../customctl.html">Write Your Own Controller</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../PlottingTutorial.html">Advanced Plotting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../Linearization.html">Example: Linearization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../PID.html">Example: PID Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../SwingUp.html">Example: Swing-Up</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../StateEstimation.html">Example: State Estimation</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../autoapi/index.html">API Reference</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../autoapi/pendsim/index.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pendsim</span></code></a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../autoapi/pendsim/controller/index.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pendsim.controller</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../autoapi/pendsim/sim/index.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pendsim.sim</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../autoapi/pendsim/test_controller/index.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pendsim.test_controller</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../autoapi/pendsim/utils/index.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pendsim.utils</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../autoapi/pendsim/viz/index.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">pendsim.viz</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container"><div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main">
+          <h1>Source code for pendsim.controller</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">pendsim.sim</span><span class="o">,</span> <span class="nn">pendsim.utils</span>
+<span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">integrate</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">scipy.signal</span> <span class="kn">import</span> <span class="n">cont2discrete</span>
+
+<span class="c1"># needed for LQR + UKF</span>
+<span class="kn">from</span> <span class="nn">filterpy.kalman</span> <span class="kn">import</span> <span class="n">UnscentedKalmanFilter</span><span class="p">,</span> <span class="n">sigma_points</span>
+
+<span class="c1"># needed for typeannotations</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Tuple</span>
+
+<span class="n">LABELS</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"x"</span><span class="p">,</span> <span class="s2">"xd"</span><span class="p">,</span> <span class="s2">"t"</span><span class="p">,</span> <span class="s2">"td"</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="Controller"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.Controller">[docs]</a><span class="k">class</span> <span class="nc">Controller</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">"""</span>
+<span class="sd">    Base class for controllers. A controller executes a `policy` during</span>
+<span class="sd">    the simulation loop. It takes some measured `state` and takes some</span>
+<span class="sd">    `action` on that state. The `action` is a force applied to the base</span>
+<span class="sd">    of the cart.</span>
+
+<span class="sd">    A controller's `policy` can include a state estimator or functions</span>
+<span class="sd">    we can use to record data.</span>
+
+<span class="sd">    Methods</span>
+<span class="sd">    -------</span>
+<span class="sd">    policy:</span>
+<span class="sd">        control policy</span>
+
+<span class="sd">    do_swingup:</span>
+<span class="sd">        get action from Astrom's "swing-up" policy</span>
+
+<span class="sd">    do_lqr:</span>
+<span class="sd">        get action from an LQR policy</span>
+
+<span class="sd">    get_linear_sys:</span>
+<span class="sd">        get the linearized system from jacobians</span>
+
+<span class="sd">    store_4tuple:</span>
+<span class="sd">        store a 4-tuple into multi-index</span>
+
+<span class="sd">    wrapPi:</span>
+<span class="sd">        wrap an angular value to [-pi, pi] interval</span>
+
+<span class="sd">    create_ukf:</span>
+<span class="sd">        create an unscented kalman filter for the system</span>
+
+<span class="sd">    do_pid:</span>
+<span class="sd">        get action from a PID control policy</span>
+
+<span class="sd">    get_and_store_priors:</span>
+<span class="sd">        utility function for storing state priors in a moving backwards horizon</span>
+
+<span class="sd">    """</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">init_state</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+        <span class="sd">"""init function for Controller object. Rare that this would be used</span>
+<span class="sd">        directly.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        init_state : np.ndarray</span>
+<span class="sd">            Initial state.</span>
+<span class="sd">        """</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">init_state</span> <span class="o">=</span> <span class="n">init_state</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prev_err</span> <span class="o">=</span> <span class="mi">0</span>
+
+<div class="viewcode-block" id="Controller.policy"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.Controller.policy">[docs]</a>    <span class="k">def</span> <span class="nf">policy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
+
+<div class="viewcode-block" id="Controller.do_swingup"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.Controller.do_swingup">[docs]</a>    <span class="k">def</span> <span class="nf">do_swingup</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">pend</span><span class="p">:</span> <span class="n">pendsim</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">Pendulum</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+        <span class="sd">"""Implement a swing-up by Energy control method described by Astrom</span>
+<span class="sd">        and Furuta. Typically, we want to implement the swing-up strategy if</span>
+<span class="sd">        the pendulum is below some threshold (i.e. theta &gt; pi/2).</span>
+
+<span class="sd">        See</span>
+
+<span class="sd">        Åström, Karl Johan, and Katsuhisa Furuta. "Swinging up a pendulum by</span>
+<span class="sd">        energy control." Automatica 36.2 (2000): 287-295.</span>
+<span class="sd">        at https://doi.org/10.1016/S1474-6670(17)57951-3</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        pend : pendsim.sim.Pendulum</span>
+<span class="sd">            The pendulum object containing `m`,`g`,`l` parameters we use to</span>
+<span class="sd">            estimate the energy of the system.</span>
+<span class="sd">        state : np.ndarray</span>
+<span class="sd">            The current state</span>
+<span class="sd">        k : float</span>
+<span class="sd">            Swing-up gain</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        float</span>
+<span class="sd">            controller action.</span>
+<span class="sd">        """</span>
+        <span class="n">m</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">l</span> <span class="o">=</span> <span class="n">pend</span><span class="o">.</span><span class="n">m</span><span class="p">,</span> <span class="n">pend</span><span class="o">.</span><span class="n">g</span><span class="p">,</span> <span class="n">pend</span><span class="o">.</span><span class="n">l</span>
+        <span class="n">E_norm</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">m</span> <span class="o">*</span> <span class="n">g</span> <span class="o">*</span> <span class="n">l</span>
+        <span class="n">E</span> <span class="o">=</span> <span class="n">m</span> <span class="o">*</span> <span class="n">g</span> <span class="o">*</span> <span class="n">l</span> <span class="o">*</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>  <span class="c1"># 0 = upright</span>
+        <span class="n">beta</span> <span class="o">=</span> <span class="n">E</span> <span class="o">/</span> <span class="n">E_norm</span>
+        <span class="n">u</span> <span class="o">=</span> <span class="n">k</span> <span class="o">*</span> <span class="n">beta</span> <span class="o">*</span> <span class="n">pendsim</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="mi">2</span><span class="p">]))</span>
+        <span class="k">return</span> <span class="o">-</span><span class="n">u</span></div>
+
+<div class="viewcode-block" id="Controller.do_lqr"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.Controller.do_lqr">[docs]</a>    <span class="k">def</span> <span class="nf">do_lqr</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">w</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">A</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">B</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">Q</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">R</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="sd">"""Finite-horizon discrete Linear Quadratic Regulator policy.</span>
+<span class="sd">        An LQR controller produces an optimal control policy over a finite horizon</span>
+<span class="sd">        according to a quadratic cost over the system state.</span>
+
+<span class="sd">        See https://underactuated.mit.edu/lqr.html</span>
+
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        w : int</span>
+<span class="sd">            window over which to perform LQR control</span>
+<span class="sd">        A : np.ndarray</span>
+<span class="sd">            linear plant transition matrix</span>
+<span class="sd">        B : np.ndarray</span>
+<span class="sd">            linear control matrix</span>
+<span class="sd">        Q : np.ndarray</span>
+<span class="sd">            controller gain matrix</span>
+<span class="sd">        R : np.ndarray</span>
+<span class="sd">            control action penalty</span>
+<span class="sd">        x : np.ndarray</span>
+<span class="sd">            system state</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        np.ndarray</span>
+<span class="sd">            sequence of control actions</span>
+<span class="sd">        """</span>
+
+        <span class="n">P</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">w</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">P</span><span class="p">[</span><span class="n">w</span><span class="p">]</span> <span class="o">=</span> <span class="n">Q</span>
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">w</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">p1</span> <span class="o">=</span> <span class="n">A</span><span class="o">.</span><span class="n">T</span> <span class="o">@</span> <span class="n">P</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">@</span> <span class="n">A</span>  <span class="c1"># (4,4)</span>
+            <span class="n">p2</span> <span class="o">=</span> <span class="n">A</span><span class="o">.</span><span class="n">T</span> <span class="o">@</span> <span class="n">P</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">@</span> <span class="n">B</span>  <span class="c1"># (4,1)</span>
+            <span class="n">p3</span> <span class="o">=</span> <span class="n">R</span> <span class="o">+</span> <span class="n">B</span><span class="o">.</span><span class="n">T</span> <span class="o">@</span> <span class="n">P</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">@</span> <span class="n">B</span>  <span class="c1"># (4,1)</span>
+            <span class="n">p3</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">pinv</span><span class="p">(</span><span class="n">R</span> <span class="o">+</span> <span class="n">B</span><span class="o">.</span><span class="n">T</span> <span class="o">@</span> <span class="n">P</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">@</span> <span class="n">B</span><span class="p">)</span>
+            <span class="n">p4</span> <span class="o">=</span> <span class="n">B</span><span class="o">.</span><span class="n">T</span> <span class="o">@</span> <span class="n">P</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">@</span> <span class="n">A</span>
+            <span class="n">P</span><span class="p">[</span><span class="n">k</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">p1</span> <span class="o">-</span> <span class="n">p2</span> <span class="o">@</span> <span class="n">p3</span> <span class="o">@</span> <span class="n">p4</span> <span class="o">+</span> <span class="n">Q</span>
+
+        <span class="n">u</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">w</span>
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">w</span><span class="p">):</span>
+            <span class="n">c1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">R</span> <span class="o">+</span> <span class="n">B</span><span class="o">.</span><span class="n">T</span> <span class="o">@</span> <span class="n">P</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">@</span> <span class="n">B</span><span class="p">)</span>
+            <span class="n">c2</span> <span class="o">=</span> <span class="n">B</span><span class="o">.</span><span class="n">T</span> <span class="o">@</span> <span class="n">P</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">@</span> <span class="n">A</span>
+            <span class="n">u</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">c1</span> <span class="o">@</span> <span class="n">c2</span> <span class="o">@</span> <span class="n">x</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="n">u</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Controller.get_linear_sys"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.Controller.get_linear_sys">[docs]</a>    <span class="k">def</span> <span class="nf">get_linear_sys</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">Adot</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">Bdot</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
+        <span class="sd">"""Get linearize from jacobians of system with timestep `dt`.</span>
+
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        Adot : np.ndarray</span>
+<span class="sd">            The (4,4) jacobian of the plant matrix A</span>
+<span class="sd">        Bdot : np.ndarray</span>
+<span class="sd">            The (4,1) jacobian of the control matrix B</span>
+<span class="sd">        dt : float</span>
+<span class="sd">            control timestep</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Tuple[np.ndarray, np.ndarray]</span>
+<span class="sd">            linearized system matrices A, B.</span>
+<span class="sd">        """</span>
+        <span class="n">A</span><span class="p">,</span> <span class="n">B</span> <span class="o">=</span> <span class="n">Adot</span><span class="p">,</span> <span class="n">Bdot</span>
+        <span class="n">C</span><span class="p">,</span> <span class="n">D</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="n">A</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])),</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="n">sys_disc</span> <span class="o">=</span> <span class="n">cont2discrete</span><span class="p">((</span><span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">C</span><span class="p">,</span> <span class="n">D</span><span class="p">),</span> <span class="n">dt</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">"zoh"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">sys_disc</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">sys_disc</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="Controller.store_4tuple"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.Controller.store_4tuple">[docs]</a>    <span class="k">def</span> <span class="nf">store_4tuple</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">level1_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">val</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="sd">"""Helper function for storing a 4-tuple of values. A level 0 key</span>
+<span class="sd">        is given, and the level 1 keys are populated with 'x', 'xd', 't','td'</span>
+<span class="sd">        values. Use this when you need to easily return data from a 4-tuple</span>
+<span class="sd">        produced by the simulation that maps to each of the 4 state values.</span>
+
+<span class="sd">        Example</span>
+
+<span class="sd">        &gt;&gt;&gt; val = [1,2,3,4]</span>
+<span class="sd">        &gt;&gt;&gt; key = "count"</span>
+<span class="sd">        &gt;&gt;&gt; store4tuple(key, val)</span>
+<span class="sd">        {</span>
+<span class="sd">            ('count','x') : 1,</span>
+<span class="sd">            ('count','xd') : 2,</span>
+<span class="sd">            ('count','t') : 3,</span>
+<span class="sd">            ('count','td') : 4,</span>
+<span class="sd">        }</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        level1_key : str</span>
+<span class="sd">            outer key</span>
+<span class="sd">        val : np.ndarray</span>
+<span class="sd">            values. Must be shape (4,1) or (4,)</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            dict containing new data values</span>
+<span class="sd">        """</span>
+        <span class="n">labels</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"x"</span><span class="p">,</span> <span class="s2">"xd"</span><span class="p">,</span> <span class="s2">"t"</span><span class="p">,</span> <span class="s2">"td"</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">pendsim</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">array_to_kv</span><span class="p">(</span><span class="n">level1_key</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="n">val</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="Controller.wrapPi"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.Controller.wrapPi">[docs]</a>    <span class="k">def</span> <span class="nf">wrapPi</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+        <span class="sd">"""Wrap an angle to the interval between [-pi, pi].</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        val : float</span>
+<span class="sd">            angle</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        float</span>
+<span class="sd">            wrapped angle</span>
+<span class="sd">        """</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">val</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span> <span class="o">%</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span></div>
+
+<div class="viewcode-block" id="Controller.create_ukf"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.Controller.create_ukf">[docs]</a>    <span class="k">def</span> <span class="nf">create_ukf</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">hx</span><span class="p">:</span> <span class="n">callable</span><span class="p">,</span> <span class="n">fx</span><span class="p">:</span> <span class="n">callable</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">UnscentedKalmanFilter</span><span class="p">:</span>
+        <span class="sd">"""Create an unscented Kalman filter with state transition functions</span>
+<span class="sd">        `fx`, measurement function `hx` with timestep between measurements</span>
+<span class="sd">        estimated as `dt`.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        dt : float</span>
+<span class="sd">            control timestep</span>
+<span class="sd">        hx : callable</span>
+<span class="sd">            function describing mapping between sensor inputs and measurements</span>
+<span class="sd">        fx : callable</span>
+<span class="sd">            function describing system. Can be non-linear.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        UnscentedKalmanFilter</span>
+<span class="sd">            UKF object with sensible defaults for sigma points.</span>
+<span class="sd">        """</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="mi">4</span>
+        <span class="n">points</span> <span class="o">=</span> <span class="n">sigma_points</span><span class="o">.</span><span class="n">MerweScaledSigmaPoints</span><span class="p">(</span>
+            <span class="n">n</span><span class="p">,</span>
+            <span class="n">alpha</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">,</span>
+            <span class="n">beta</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+            <span class="n">kappa</span><span class="o">=</span><span class="mi">3</span> <span class="o">-</span> <span class="n">n</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">kf</span> <span class="o">=</span> <span class="n">UnscentedKalmanFilter</span><span class="p">(</span>
+            <span class="n">dim_x</span><span class="o">=</span><span class="n">n</span><span class="p">,</span>
+            <span class="n">dim_z</span><span class="o">=</span><span class="n">n</span><span class="p">,</span>
+            <span class="n">dt</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span>
+            <span class="n">hx</span><span class="o">=</span><span class="n">hx</span><span class="p">,</span>
+            <span class="n">fx</span><span class="o">=</span><span class="n">fx</span><span class="p">,</span>
+            <span class="n">points</span><span class="o">=</span><span class="n">points</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">kf</span></div>
+
+<div class="viewcode-block" id="Controller.do_pid"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.Controller.do_pid">[docs]</a>    <span class="k">def</span> <span class="nf">do_pid</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">kp</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">ki</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">kd</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+        <span class="sd">"""Perform PID (proportional-integral-derivative) control policy given</span>
+<span class="sd">        a system state. This policy executes on the pendulum angle (i.e. attempts)</span>
+<span class="sd">        to keep the pendulum in the upright position.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        dt : float</span>
+<span class="sd">            control timestep</span>
+<span class="sd">        kp : float</span>
+<span class="sd">            proportional gain</span>
+<span class="sd">        ki : float</span>
+<span class="sd">            integral gain</span>
+<span class="sd">        kd : float</span>
+<span class="sd">            derivative gain</span>
+<span class="sd">        state : np.array</span>
+<span class="sd">            input state</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        float</span>
+<span class="sd">            control action</span>
+<span class="sd">        """</span>
+        <span class="n">err</span> <span class="o">=</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">wrapPi</span><span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+        <span class="n">errd</span> <span class="o">=</span> <span class="p">(</span><span class="n">err</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">prev_err</span><span class="p">)</span> <span class="o">/</span> <span class="n">dt</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">integrator</span> <span class="o">+=</span> <span class="n">err</span>
+        <span class="n">action</span> <span class="o">=</span> <span class="n">kp</span> <span class="o">*</span> <span class="n">err</span> <span class="o">+</span> <span class="n">ki</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">integrator</span> <span class="o">+</span> <span class="n">kd</span> <span class="o">*</span> <span class="n">errd</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prev_err</span> <span class="o">=</span> <span class="n">err</span>
+        <span class="k">return</span> <span class="n">action</span></div>
+
+<div class="viewcode-block" id="Controller.get_and_store_priors"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.Controller.get_and_store_priors">[docs]</a>    <span class="k">def</span> <span class="nf">get_and_store_priors</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+        <span class="sd">"""utility function for getting and storing priors in some window `n`.</span>
+<span class="sd">        This function returns two values `l` and `u` which provide the indices</span>
+<span class="sd">        to a moving window over prior_states. You must include an attr `tick`,</span>
+<span class="sd">        which is incremented to determine the window, as well as an attr `prior_states`</span>
+<span class="sd">        to store states to use this function, and this function alters those attrs.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        state : np.ndarray</span>
+<span class="sd">            input state to store</span>
+<span class="sd">        n : int</span>
+<span class="sd">            window for returning `l`, `u` pair.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Tuple[int, int]</span>
+<span class="sd">            l, u pair. If you want to get n most recent prior measurements, call</span>
+<span class="sd">            self.prior_states[l:u]</span>
+<span class="sd">        """</span>
+        <span class="n">l</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tick</span> <span class="o">-</span> <span class="n">n</span><span class="p">)</span>
+        <span class="n">u</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tick</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tick</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prior_states</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">l</span><span class="p">,</span> <span class="n">u</span></div></div>
+
+
+<div class="viewcode-block" id="PID"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.PID">[docs]</a><span class="k">class</span> <span class="nc">PID</span><span class="p">(</span><span class="n">Controller</span><span class="p">):</span>
+    <span class="sd">"""Basic PID Control class. This class produces a basic PID controller</span>
+<span class="sd">    that takes the state as it is measured and executes a pid policy on it.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    pid : Tuple[float, float, float]</span>
+<span class="sd">        kp, ki, kd gains for the controller</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pid</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kp</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ki</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">kd</span> <span class="o">=</span> <span class="n">pid</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">integrator</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prev_err</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">first</span> <span class="o">=</span> <span class="kc">True</span>
+
+<div class="viewcode-block" id="PID.policy"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.PID.policy">[docs]</a>    <span class="k">def</span> <span class="nf">policy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]:</span>
+        <span class="sd">"""PID policy. This just calls `do_pid` on the state, but you can</span>
+<span class="sd">        add data collection values to it.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        state : np.ndarray</span>
+<span class="sd">            system state</span>
+<span class="sd">        dt : float</span>
+<span class="sd">            control timestep</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Tuple[float, dict]</span>
+<span class="sd">            action, data pair</span>
+<span class="sd">        """</span>
+        <span class="n">action</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">do_pid</span><span class="p">(</span><span class="n">dt</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">kp</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ki</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">kd</span><span class="p">,</span> <span class="n">state</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">action</span><span class="p">,</span> <span class="p">{}</span></div></div>
+
+
+<div class="viewcode-block" id="PID_UKF"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.PID_UKF">[docs]</a><span class="k">class</span> <span class="nc">PID_UKF</span><span class="p">(</span><span class="n">Controller</span><span class="p">):</span>
+    <span class="sd">"""PID controller with unscented kalman filter. The unscented kalman filter</span>
+<span class="sd">    uses variance on the scale of `var_t` to get the measurement noise estimate.</span>
+<span class="sd">    (`var_t` is a measurement of time in seconds.)</span>
+
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    pid : Tuple[float, float, float]</span>
+<span class="sd">        kp, ki, kd gains for the controller</span>
+<span class="sd">    pend : [type]</span>
+<span class="sd">        object containing the pendulum under control.</span>
+<span class="sd">    dt : float</span>
+<span class="sd">        control timestep</span>
+<span class="sd">    var_t : float</span>
+<span class="sd">        window over which to collect the measurement</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">pid</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="n">pend</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">var_t</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># PID Parameters</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kp</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ki</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">kd</span> <span class="o">=</span> <span class="n">pid</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">integrator</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prev_err</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="c1"># UKF Parameters</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">var_t</span> <span class="o">=</span> <span class="n">var_t</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">B</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_linear_sys</span><span class="p">(</span><span class="n">pend</span><span class="o">.</span><span class="n">jacA</span><span class="p">,</span> <span class="n">pend</span><span class="o">.</span><span class="n">jacB</span><span class="p">,</span> <span class="n">dt</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pend</span> <span class="o">=</span> <span class="n">pend</span>
+
+        <span class="k">def</span> <span class="nf">sys_dynamics</span><span class="p">(</span><span class="n">t0</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+            <span class="c1"># unpack variables</span>
+            <span class="n">_</span><span class="p">,</span> <span class="n">xd</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">td</span><span class="p">,</span> <span class="n">u</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">x</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">x</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="n">x</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span>
+            <span class="n">m</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="n">l</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">cfric</span><span class="p">,</span> <span class="n">pfric</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pend</span><span class="o">.</span><span class="n">m</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pend</span><span class="o">.</span><span class="n">M</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pend</span><span class="o">.</span><span class="n">l</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pend</span><span class="o">.</span><span class="n">g</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pend</span><span class="o">.</span><span class="n">cfric</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pend</span><span class="o">.</span><span class="n">pfric</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">cost</span><span class="p">,</span> <span class="n">sint</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">t</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+            <span class="c1"># system dynamics</span>
+            <span class="n">xdd</span> <span class="o">=</span> <span class="p">(</span><span class="n">g</span> <span class="o">*</span> <span class="n">m</span> <span class="o">*</span> <span class="n">sint</span> <span class="o">*</span> <span class="n">cost</span> <span class="o">+</span> <span class="n">u</span> <span class="o">-</span> <span class="n">m</span> <span class="o">*</span> <span class="n">l</span> <span class="o">*</span> <span class="n">td</span> <span class="o">*</span> <span class="n">td</span> <span class="o">*</span> <span class="n">sint</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span>
+                <span class="n">M</span> <span class="o">+</span> <span class="n">m</span> <span class="o">-</span> <span class="n">m</span> <span class="o">*</span> <span class="n">cost</span> <span class="o">*</span> <span class="n">cost</span>
+            <span class="p">)</span>
+            <span class="n">tdd</span> <span class="o">=</span> <span class="p">(</span><span class="n">g</span> <span class="o">*</span> <span class="n">sint</span> <span class="o">+</span> <span class="n">xdd</span> <span class="o">*</span> <span class="n">cost</span><span class="p">)</span> <span class="o">/</span> <span class="n">l</span>
+
+            <span class="c1"># viscous friction</span>
+            <span class="n">xdd</span> <span class="o">+=</span> <span class="o">-</span><span class="mi">1</span> <span class="o">*</span> <span class="n">cfric</span> <span class="o">*</span> <span class="n">xd</span>
+            <span class="n">tdd</span> <span class="o">+=</span> <span class="o">-</span><span class="mi">1</span> <span class="o">*</span> <span class="n">pfric</span> <span class="o">*</span> <span class="n">td</span>
+            <span class="c1"># [state] + [u] is returned for the solver</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">xd</span><span class="p">,</span> <span class="n">xdd</span><span class="p">,</span> <span class="n">td</span><span class="p">,</span> <span class="n">tdd</span><span class="p">,</span> <span class="n">u</span><span class="p">])</span>
+
+        <span class="k">def</span> <span class="nf">fx</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+            <span class="c1"># we just tack u onto the end so one arg is passed into the solver</span>
+            <span class="n">x_in</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="n">u</span><span class="p">)),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="c1"># solve IVP</span>
+            <span class="n">sol</span> <span class="o">=</span> <span class="n">integrate</span><span class="o">.</span><span class="n">solve_ivp</span><span class="p">(</span><span class="n">sys_dynamics</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">dt</span><span class="p">),</span> <span class="n">x_in</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">sol</span><span class="o">.</span><span class="n">y</span><span class="p">[:</span><span class="mi">4</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="k">def</span> <span class="nf">hx</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">x</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">kf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_ukf</span><span class="p">(</span><span class="n">dt</span><span class="p">,</span> <span class="n">hx</span><span class="p">,</span> <span class="n">fx</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">prior_states</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tick</span> <span class="o">=</span> <span class="mi">0</span>
+
+<div class="viewcode-block" id="PID_UKF.policy"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.PID_UKF.policy">[docs]</a>    <span class="k">def</span> <span class="nf">policy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]:</span>
+        <span class="sd">"""Measure variance from prior states over `var_t`, then use that variance</span>
+<span class="sd">        to compute an estimated state with an unscented kalman filter. The measured</span>
+<span class="sd">        state is then used for the PID control policy.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        state : np.ndarray</span>
+<span class="sd">            system state</span>
+<span class="sd">        dt : float</span>
+<span class="sd">            timestep</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Tuple[float, dict]</span>
+<span class="sd">            action, data pair</span>
+<span class="sd">        """</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">get_and_store_priors</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">var_t</span> <span class="o">*</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">dt</span><span class="p">))</span>
+        <span class="n">prior</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prior_states</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">tick</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">var</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cov</span><span class="p">(</span><span class="n">prior</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">var</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span> <span class="o">*</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kf</span><span class="o">.</span><span class="n">Q</span> <span class="o">=</span> <span class="n">var</span> <span class="o">**</span> <span class="mi">2</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="n">est</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kf</span><span class="o">.</span><span class="n">x</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kf</span><span class="o">.</span><span class="n">y</span>
+
+        <span class="n">action</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">do_pid</span><span class="p">(</span><span class="n">dt</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">kp</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ki</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">kd</span><span class="p">,</span> <span class="n">est</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kf</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">dt</span><span class="p">,</span> <span class="o">**</span><span class="p">{</span><span class="s2">"u"</span><span class="p">:</span> <span class="n">action</span><span class="p">})</span>
+
+        <span class="n">labels</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"x"</span><span class="p">,</span> <span class="s2">"xd"</span><span class="p">,</span> <span class="s2">"t"</span><span class="p">,</span> <span class="s2">"td"</span><span class="p">]</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">data</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">pendsim</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">array_to_kv</span><span class="p">(</span><span class="s2">"res"</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">res</span><span class="p">))</span>
+        <span class="n">data</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">pendsim</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">array_to_kv</span><span class="p">(</span><span class="s2">"est"</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">est</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">action</span><span class="p">,</span> <span class="n">data</span></div></div>
+
+
+<div class="viewcode-block" id="LQR_UKF"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.LQR_UKF">[docs]</a><span class="k">class</span> <span class="nc">LQR_UKF</span><span class="p">(</span><span class="n">Controller</span><span class="p">):</span>
+    <span class="sd">"""LQR controller with unscented kalman filter state estimation.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    qr : Tuple[np.ndarray, float]</span>
+<span class="sd">        tuple of (Q, R) matrices. In this case R is a 1x1 matrix or float.</span>
+<span class="sd">    lqrw : int</span>
+<span class="sd">        the window over which to perform LQR. Longer windows are more accurate,</span>
+<span class="sd">        because they take into account a longer approximation of the system</span>
+<span class="sd">        response. However, they take more time to compute and can be numerically</span>
+<span class="sd">        unstable.</span>
+<span class="sd">    pend : pendsim.sim.Pendulum</span>
+<span class="sd">        pendulum object with jacobians of A and B matrices.</span>
+<span class="sd">    dt : float</span>
+<span class="sd">        control timestep</span>
+<span class="sd">    var_t : float</span>
+<span class="sd">        window over which to collect variances, in units of seconds.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">qr</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="n">lqrw</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">pend</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">var_t</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># LQR Parameters</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Q</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">R</span> <span class="o">=</span> <span class="n">qr</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lqrw</span> <span class="o">=</span> <span class="n">lqrw</span>
+        <span class="c1"># UKF Parameters</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">B</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_linear_sys</span><span class="p">(</span><span class="n">pend</span><span class="o">.</span><span class="n">jacA</span><span class="p">,</span> <span class="n">pend</span><span class="o">.</span><span class="n">jacB</span><span class="p">,</span> <span class="n">dt</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">fx</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">B</span><span class="p">,</span> <span class="n">u</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+
+        <span class="k">def</span> <span class="nf">hx</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">x</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">kf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_ukf</span><span class="p">(</span><span class="n">dt</span><span class="p">,</span> <span class="n">hx</span><span class="p">,</span> <span class="n">fx</span><span class="p">)</span>
+
+        <span class="c1"># Prior state info</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tick</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">var_t</span> <span class="o">=</span> <span class="n">var_t</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prior_states</span> <span class="o">=</span> <span class="p">[]</span>
+
+<div class="viewcode-block" id="LQR_UKF.policy"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.LQR_UKF.policy">[docs]</a>    <span class="k">def</span> <span class="nf">policy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">get_and_store_priors</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">var_t</span> <span class="o">*</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">dt</span><span class="p">))</span>
+        <span class="n">prior</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prior_states</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">tick</span> <span class="o">&gt;</span> <span class="mi">5</span><span class="p">:</span>
+            <span class="n">var</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cov</span><span class="p">(</span><span class="n">prior</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">var</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span> <span class="o">*</span> <span class="mi">1</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">kf</span><span class="o">.</span><span class="n">Q</span> <span class="o">=</span> <span class="n">var</span> <span class="o">**</span> <span class="mi">2</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="n">est</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kf</span><span class="o">.</span><span class="n">x</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kf</span><span class="o">.</span><span class="n">y</span>
+
+        <span class="n">action</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">do_lqr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lqrw</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">B</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">Q</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">R</span><span class="p">,</span> <span class="n">est</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kf</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">dt</span><span class="p">,</span> <span class="o">**</span><span class="p">{</span><span class="s2">"u"</span><span class="p">:</span> <span class="n">action</span><span class="p">})</span>
+
+        <span class="n">labels</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"x"</span><span class="p">,</span> <span class="s2">"xd"</span><span class="p">,</span> <span class="s2">"t"</span><span class="p">,</span> <span class="s2">"td"</span><span class="p">]</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">data</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">pendsim</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">array_to_kv</span><span class="p">(</span><span class="s2">"res"</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">res</span><span class="p">))</span>
+        <span class="n">data</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">pendsim</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">array_to_kv</span><span class="p">(</span><span class="s2">"est"</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">est</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">action</span><span class="p">,</span> <span class="n">data</span></div></div>
+
+
+<div class="viewcode-block" id="LQR"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.LQR">[docs]</a><span class="k">class</span> <span class="nc">LQR</span><span class="p">(</span><span class="n">Controller</span><span class="p">):</span>
+    <span class="sd">"""Perform an LQR strategy.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    pend : pendsim.sim.Pendulum</span>
+<span class="sd">        The pendulum we want to control</span>
+<span class="sd">    dt : float</span>
+<span class="sd">        Timestep of the simulation</span>
+<span class="sd">    window : int</span>
+<span class="sd">        the window over which to perform LQR. For example; `window=5` will</span>
+<span class="sd">        optimize over 5 timesteps</span>
+<span class="sd">    Q : np.ndarray</span>
+<span class="sd">        State cost array</span>
+<span class="sd">    R : np.ndarray</span>
+<span class="sd">        Actuation cost array</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">pend</span><span class="p">:</span> <span class="n">pendsim</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">Pendulum</span><span class="p">,</span>
+        <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">window</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">Q</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">R</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">window</span> <span class="o">=</span> <span class="n">window</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">B</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_linear_sys</span><span class="p">(</span><span class="n">pend</span><span class="o">.</span><span class="n">jacA</span><span class="p">,</span> <span class="n">pend</span><span class="o">.</span><span class="n">jacB</span><span class="p">,</span> <span class="n">dt</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Q</span> <span class="o">=</span> <span class="n">Q</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">R</span> <span class="o">=</span> <span class="n">R</span>
+
+<div class="viewcode-block" id="LQR.policy"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.LQR.policy">[docs]</a>    <span class="k">def</span> <span class="nf">policy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]:</span>
+        <span class="n">action</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">do_lqr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">window</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">B</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">Q</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">R</span><span class="p">,</span> <span class="n">state</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">action</span><span class="p">,</span> <span class="p">{}</span></div></div>
+
+
+<div class="viewcode-block" id="LQRSwingup"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.LQRSwingup">[docs]</a><span class="k">class</span> <span class="nc">LQRSwingup</span><span class="p">(</span><span class="n">Controller</span><span class="p">):</span>
+    <span class="sd">"""[summary]</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    pend : pendsim.sim.Pendulum</span>
+<span class="sd">        pendulum object</span>
+<span class="sd">    dt : float</span>
+<span class="sd">        simulation timestep</span>
+<span class="sd">    window : int</span>
+<span class="sd">        the LQR window</span>
+<span class="sd">    Q : np.ndarray</span>
+<span class="sd">        State cost array</span>
+<span class="sd">    R : np.ndarray</span>
+<span class="sd">        Actuation cost array</span>
+<span class="sd">    k : float</span>
+<span class="sd">        swing up gain</span>
+<span class="sd">    thresh : float, optional</span>
+<span class="sd">        threshold for swing-up, above this angular value, the controller</span>
+<span class="sd">        will attempt to swing itself upright; below it, it will perform</span>
+<span class="sd">        an LQR control strategy.     by default np.pi/4</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">pend</span><span class="p">:</span> <span class="n">pendsim</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">Pendulum</span><span class="p">,</span>
+        <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">window</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">Q</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">R</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">k</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">thresh</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">4</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">window</span> <span class="o">=</span> <span class="n">window</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">B</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_linear_sys</span><span class="p">(</span><span class="n">pend</span><span class="o">.</span><span class="n">jacA</span><span class="p">,</span> <span class="n">pend</span><span class="o">.</span><span class="n">jacB</span><span class="p">,</span> <span class="n">dt</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Q</span> <span class="o">=</span> <span class="n">Q</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">R</span> <span class="o">=</span> <span class="n">R</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pend</span> <span class="o">=</span> <span class="n">pend</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">thresh</span> <span class="o">=</span> <span class="n">thresh</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">k</span> <span class="o">=</span> <span class="n">k</span>
+
+<div class="viewcode-block" id="LQRSwingup.policy"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.LQRSwingup.policy">[docs]</a>    <span class="k">def</span> <span class="nf">policy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">wrapPi</span><span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">thresh</span><span class="p">:</span>
+            <span class="n">action</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">do_swingup</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pend</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">k</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">action</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">do_lqr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">window</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">B</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">Q</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">R</span><span class="p">,</span> <span class="n">state</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">action</span><span class="p">,</span> <span class="p">{}</span></div></div>
+
+
+<div class="viewcode-block" id="NoController"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.NoController">[docs]</a><span class="k">class</span> <span class="nc">NoController</span><span class="p">(</span><span class="n">Controller</span><span class="p">):</span>
+    <span class="sd">"""\"No Controller\" controller. This guy does nothing, 0 action, at</span>
+<span class="sd">    every timestep.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span>
+
+<div class="viewcode-block" id="NoController.policy"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.NoController.policy">[docs]</a>    <span class="k">def</span> <span class="nf">policy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="p">{}</span></div></div>
+
+
+<div class="viewcode-block" id="BangBang"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.BangBang">[docs]</a><span class="k">class</span> <span class="nc">BangBang</span><span class="p">(</span><span class="n">Controller</span><span class="p">):</span>
+    <span class="sd">"""BangBang control strategy. If the pendulum is within a threshold given</span>
+<span class="sd">    by `threshold`, push as hard as possible to get it to vertical. When it</span>
+<span class="sd">    passes over `theta`, push the other way.</span>
+
+<span class="sd">    This is what your air conditioner uses and it's probably not ideal for the</span>
+<span class="sd">    fast dynamics at hand here.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    magnitude : float</span>
+<span class="sd">        magnitude of the push.</span>
+<span class="sd">    setpoint : float, optional</span>
+<span class="sd">        setpoint around which to push. 0 by default</span>
+<span class="sd">    threshold : float, optional</span>
+<span class="sd">        threshold; if the pendulum falls above the threshold (i.e. if it falls over)</span>
+<span class="sd">        this prevents the controller from taking continous action. By default np.pi/4</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">magnitude</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">setpoint</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">4</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">setpoint</span> <span class="o">=</span> <span class="n">setpoint</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">magnitude</span> <span class="o">=</span> <span class="n">magnitude</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">threshold</span> <span class="o">=</span> <span class="n">threshold</span>
+
+<div class="viewcode-block" id="BangBang.policy"><a class="viewcode-back" href="../../autoapi/pendsim/controller/index.html#pendsim.controller.BangBang.policy">[docs]</a>    <span class="k">def</span> <span class="nf">policy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]:</span>
+        <span class="n">error</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">setpoint</span>
+        <span class="n">action</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="k">if</span> <span class="n">error</span> <span class="o">&gt;</span> <span class="mf">0.1</span> <span class="ow">and</span> <span class="n">state</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">threshold</span><span class="p">:</span>
+            <span class="n">action</span> <span class="o">=</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">magnitude</span>
+        <span class="k">elif</span> <span class="n">error</span> <span class="o">&lt;</span> <span class="o">-</span><span class="mf">0.1</span> <span class="ow">and</span> <span class="n">state</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">&gt;</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">threshold</span><span class="p">:</span>
+            <span class="n">action</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">magnitude</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">action</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="k">return</span> <span class="n">action</span><span class="p">,</span> <span class="p">{}</span></div></div>
+</pre></div>
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          
+          
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2021, Mike Sutherland
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            <div class="icons">
+              
+            </div>
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer no-toc">
+      
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/scripts/furo.js"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    </body>
+</html>

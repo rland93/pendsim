@@ -1,0 +1,334 @@
+:py:mod:`pendsim.sim`
+=====================
+
+.. py:module:: pendsim.sim
+
+.. autoapi-nested-parse::
+
+   
+   ..
+       !! processed by numpydoc !!
+
+
+Module Contents
+---------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   pendsim.sim.Pendulum
+   pendsim.sim.Simulation
+
+
+
+
+.. py:class:: Pendulum(M: float, m: float, l: float, g: float = 9.81, cfric: float = 0.0, pfric: float = 0.0, initial_state: numpy.ndarray = np.array([0, 0, 0, 0]))
+
+   Bases: :py:obj:`object`
+
+   
+   Class for a pendulum object
+
+
+   :Parameters:
+
+       **M** : float
+           Cart weight, in kg
+
+       **m** : float
+           Pendulum weight, in kg
+
+       **l** : float
+           Length of pendulum, in m
+
+       **g** : float, optional
+           Gravitational constant, in m/s^2, by default 9.81
+
+       **cfric** : float, optional
+           Cart viscous friction coefficient, by default 0.1
+
+       **pfric** : float, optional
+           Pendulum viscous friction coefficient, by default 0.05
+
+       **initial_state** : np.ndarray, optional
+           Initial pendulum state, by default np.array([0, 0, 0, 0])
+
+
+
+
+
+
+
+
+
+
+
+
+   :Attributes:
+
+       **jacA** : np.array
+           The jacobian of the state transition matrix A
+
+       **jacB** : np.array
+           The jacobian of the control matrix B
+
+
+   ..
+       !! processed by numpydoc !!
+   .. py:method:: system_dynamics(self, t: float, state: numpy.ndarray) -> numpy.ndarray
+
+      
+      Solve the system dynamics in the form xdot = A\x
+
+      Because this function is called by `solve_ivp`, we package the control
+      input `u` with the state; i.e. the state vector is [x, xdot, theta, thetadot, u]
+
+      input `t` is unused, because the pendulum is modeled as an LTI system.
+
+      :Parameters:
+
+          **t** : float
+              time
+
+          **state** : np.ndarray
+              state, including cart force `u`.
+
+      :Returns:
+
+          np.ndarray
+              x dot
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+   .. py:method:: get_energy(self, state: numpy.ndarray) -> Tuple[float, float]
+
+      
+      Get energy of a state.
+
+
+      :Parameters:
+
+          **state** : np.ndarray
+              system state
+
+      :Returns:
+
+          Tuple[float, float]
+              tuple of (kinetic, potential) energies.
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+   .. py:method:: calculate_reaction_forces(self, state: numpy.ndarray, xdd: float, tdd: float) -> tuple
+
+      
+      Get reaction forces on each body (cart and pendulum). This can be
+      used to construct or visualize the forces that are applied to each body
+
+
+      :Parameters:
+
+          **state** : np.ndarray
+              system state
+
+          **xdd** : float
+              cart acceleration
+
+          **tdd** : float
+              angular acceleration
+
+      :Returns:
+
+          tuple
+              (pend reaction force x-dir, pend reaction force y-dir, pend G force,
+              cart reaction force x-dir, cart reaction force y-dir, cart G force,
+              cart normal force)
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+.. py:class:: Simulation(dt: float, t_final: float, force: callable, noise_scale: numpy.ndarray = None)
+
+   Bases: :py:obj:`object`
+
+   
+   Simulation object
+
+
+   :Parameters:
+
+       **dt** : float
+           simulation timestep in seconds
+
+       **t_final** : float
+           final simulation time in seconds (simulation happens over the interval [0, t_final])
+
+       **force** : callable
+           a time-dependent forcing function. Must be in the form `f(t) = u` where t is the
+           supplied time and u is the corresponding force applied to the cart.
+
+       **noise_scale** : np.ndarray, optional
+           scale of gaussian noise to add to the system state. Is a 4-tuple where each value corresponds
+           to the variance of the noise added to each state value, by default None
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+   .. py:method:: simulate(self, pendulum: Pendulum, controller) -> pandas.DataFrame
+
+      
+      Simulate the system with the parameters stored in the `Simulation` object.
+
+      User supplies a pendulum and a controller, so that the same simulation conditions
+      (timestep, noise, external force, etc) can be tested against multiple pendulums and
+      controllers.
+
+      :Parameters:
+
+          **pendulum** : Pendulum
+              Pendulum object under simulation
+
+          **controller** : [type]
+              Controller to run over the simulation
+
+      :Returns:
+
+          pd.DataFrame
+              The results of the simulation. Calling e.g. results.columns will show all fields
+              recorded during the simulation. This is a 2-level Multi-Index dataframe.
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+   .. py:method:: simulate_multiple(self, pendulums, controllers, parallel=True)
+
+      
+      Simulate pendulums and controllers in a list. This method sees significant speedup
+      in parallelization.
+
+
+      :Parameters:
+
+          **pendulums** : list
+              List of pendulums to simulate
+
+          **controllers** : list
+              List of controllers to simulate
+
+          **parallel** : bool, optional
+              Whether to simulate in parallel across multiple cores, by default True
+
+      :Returns:
+
+          pd.DataFrame
+              Dataframe of results. This dataframe basically stacks each run in a multi-index,
+              where the level0 indices are the multiple runs of the simulation and the level1 indices
+              are the timesteps of each run.
+
+
+
+
+      :Raises:
+
+          ValueError
+              pendulums and controllers must be 1:1, i.e. each pendulum must be supplied with a
+              controller, even if controllers or pendulums used across runs are the same.
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+   .. py:method:: runsim(self, pend_cont_tuple)
+
+      
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+

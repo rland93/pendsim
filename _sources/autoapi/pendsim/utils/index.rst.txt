@@ -1,0 +1,139 @@
+:py:mod:`pendsim.utils`
+=======================
+
+.. py:module:: pendsim.utils
+
+.. autoapi-nested-parse::
+
+   
+   ..
+       !! processed by numpydoc !!
+
+
+Module Contents
+---------------
+
+
+Functions
+~~~~~~~~~
+
+.. autoapisummary::
+
+   pendsim.utils.array_to_kv
+   pendsim.utils.sign
+   pendsim.utils.impulse_func
+   pendsim.utils.sine_func
+   pendsim.utils.plot_input_func
+
+
+
+.. py:function:: array_to_kv(level1_key: Hashable, level2_keys: Iterable[Hashable], array: numpy.ndarray) -> dict
+
+   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: sign(x: float) -> float
+
+   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: impulse_func(a: float = 0.5, t_offset: float = 4.0) -> callable
+
+   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: sine_func(period=1) -> callable
+
+   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: plot_input_func(ifunc: callable, t_final: float, ax: matplotlib.pyplot.Axes) -> None
+
+   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

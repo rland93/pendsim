@@ -1,0 +1,916 @@
+:py:mod:`pendsim.controller`
+============================
+
+.. py:module:: pendsim.controller
+
+.. autoapi-nested-parse::
+
+   
+   ..
+       !! processed by numpydoc !!
+
+
+Module Contents
+---------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   pendsim.controller.Controller
+   pendsim.controller.PID
+   pendsim.controller.PID_UKF
+   pendsim.controller.LQR_UKF
+   pendsim.controller.LQR
+   pendsim.controller.LQRSwingup
+   pendsim.controller.NoController
+   pendsim.controller.BangBang
+
+
+
+
+Attributes
+~~~~~~~~~~
+
+.. autoapisummary::
+
+   pendsim.controller.LABELS
+
+
+.. py:data:: LABELS
+   :annotation: = ['x', 'xd', 't', 'td']
+
+   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:class:: Controller(init_state: numpy.ndarray)
+
+   Bases: :py:obj:`object`
+
+   
+   Base class for controllers. A controller executes a `policy` during
+   the simulation loop. It takes some measured `state` and takes some
+   `action` on that state. The `action` is a force applied to the base
+   of the cart.
+
+   A controller's `policy` can include a state estimator or functions
+   we can use to record data.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Methods
+
+
+
+   =========================  ==========
+                 **policy:**  control policy  
+             **do_swingup:**  get action from Astrom's "swing-up" policy  
+                 **do_lqr:**  get action from an LQR policy  
+         **get_linear_sys:**  get the linearized system from jacobians  
+           **store_4tuple:**  store a 4-tuple into multi-index  
+                 **wrapPi:**  wrap an angular value to [-pi, pi] interval  
+             **create_ukf:**  create an unscented kalman filter for the system  
+                 **do_pid:**  get action from a PID control policy  
+   **get_and_store_priors:**  utility function for storing state priors in a moving backwards horizon  
+   =========================  ==========
+
+   ..
+       !! processed by numpydoc !!
+   .. py:method:: policy(self, state: numpy.ndarray, dt: float) -> Tuple[float, dict]
+      :abstractmethod:
+
+      
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+   .. py:method:: do_swingup(self, pend: pendsim.sim.Pendulum, state: numpy.ndarray, k: float) -> float
+
+      
+      Implement a swing-up by Energy control method described by Astrom
+      and Furuta. Typically, we want to implement the swing-up strategy if
+      the pendulum is below some threshold (i.e. theta > pi/2).
+
+      See
+
+      Åström, Karl Johan, and Katsuhisa Furuta. "Swinging up a pendulum by
+      energy control." Automatica 36.2 (2000): 287-295.
+      at https://doi.org/10.1016/S1474-6670(17)57951-3
+
+      :Parameters:
+
+          **pend** : pendsim.sim.Pendulum
+              The pendulum object containing `m`,`g`,`l` parameters we use to
+              estimate the energy of the system.
+
+          **state** : np.ndarray
+              The current state
+
+          **k** : float
+              Swing-up gain
+
+      :Returns:
+
+          float
+              controller action.
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+   .. py:method:: do_lqr(self, w: int, A: numpy.ndarray, B: numpy.ndarray, Q: numpy.ndarray, R: numpy.ndarray, x: numpy.ndarray) -> numpy.ndarray
+
+      
+      Finite-horizon discrete Linear Quadratic Regulator policy.
+      An LQR controller produces an optimal control policy over a finite horizon
+      according to a quadratic cost over the system state.
+
+      See https://underactuated.mit.edu/lqr.html
+
+      :Parameters:
+
+          **w** : int
+              window over which to perform LQR control
+
+          **A** : np.ndarray
+              linear plant transition matrix
+
+          **B** : np.ndarray
+              linear control matrix
+
+          **Q** : np.ndarray
+              controller gain matrix
+
+          **R** : np.ndarray
+              control action penalty
+
+          **x** : np.ndarray
+              system state
+
+      :Returns:
+
+          np.ndarray
+              sequence of control actions
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+   .. py:method:: get_linear_sys(self, Adot: numpy.ndarray, Bdot: numpy.ndarray, dt: float) -> Tuple[numpy.ndarray, numpy.ndarray]
+
+      
+      Get linearize from jacobians of system with timestep `dt`.
+
+
+      :Parameters:
+
+          **Adot** : np.ndarray
+              The (4,4) jacobian of the plant matrix A
+
+          **Bdot** : np.ndarray
+              The (4,1) jacobian of the control matrix B
+
+          **dt** : float
+              control timestep
+
+      :Returns:
+
+          Tuple[np.ndarray, np.ndarray]
+              linearized system matrices A, B.
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+   .. py:method:: store_4tuple(self, level1_key: str, val: numpy.ndarray) -> dict
+
+      
+      Helper function for storing a 4-tuple of values. A level 0 key
+      is given, and the level 1 keys are populated with 'x', 'xd', 't','td'
+      values. Use this when you need to easily return data from a 4-tuple
+      produced by the simulation that maps to each of the 4 state values.
+
+      Example
+
+      >>> val = [1,2,3,4]
+      >>> key = "count"
+      >>> store4tuple(key, val)
+      {
+          ('count','x') : 1,
+          ('count','xd') : 2,
+          ('count','t') : 3,
+          ('count','td') : 4,
+      }
+
+      :Parameters:
+
+          **level1_key** : str
+              outer key
+
+          **val** : np.ndarray
+              values. Must be shape (4,1) or (4,)
+
+      :Returns:
+
+          dict
+              dict containing new data values
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+   .. py:method:: wrapPi(self, val: float) -> float
+
+      
+      Wrap an angle to the interval between [-pi, pi].
+
+
+      :Parameters:
+
+          **val** : float
+              angle
+
+      :Returns:
+
+          float
+              wrapped angle
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+   .. py:method:: create_ukf(self, dt: float, hx: callable, fx: callable) -> filterpy.kalman.UnscentedKalmanFilter
+
+      
+      Create an unscented Kalman filter with state transition functions
+      `fx`, measurement function `hx` with timestep between measurements
+      estimated as `dt`.
+
+
+      :Parameters:
+
+          **dt** : float
+              control timestep
+
+          **hx** : callable
+              function describing mapping between sensor inputs and measurements
+
+          **fx** : callable
+              function describing system. Can be non-linear.
+
+      :Returns:
+
+          UnscentedKalmanFilter
+              UKF object with sensible defaults for sigma points.
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+   .. py:method:: do_pid(self, dt: float, kp: float, ki: float, kd: float, state: numpy.array) -> float
+
+      
+      Perform PID (proportional-integral-derivative) control policy given
+      a system state. This policy executes on the pendulum angle (i.e. attempts)
+      to keep the pendulum in the upright position.
+
+
+      :Parameters:
+
+          **dt** : float
+              control timestep
+
+          **kp** : float
+              proportional gain
+
+          **ki** : float
+              integral gain
+
+          **kd** : float
+              derivative gain
+
+          **state** : np.array
+              input state
+
+      :Returns:
+
+          float
+              control action
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+   .. py:method:: get_and_store_priors(self, state: numpy.ndarray, n: int) -> Tuple[int, int]
+
+      
+      utility function for getting and storing priors in some window `n`.
+      This function returns two values `l` and `u` which provide the indices
+      to a moving window over prior_states. You must include an attr `tick`,
+      which is incremented to determine the window, as well as an attr `prior_states`
+      to store states to use this function, and this function alters those attrs.
+
+
+      :Parameters:
+
+          **state** : np.ndarray
+              input state to store
+
+          **n** : int
+              window for returning `l`, `u` pair.
+
+      :Returns:
+
+          Tuple[int, int]
+              l, u pair. If you want to get n most recent prior measurements, call
+              self.prior_states[l:u]
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+.. py:class:: PID(pid: Tuple[float, float, float])
+
+   Bases: :py:obj:`Controller`
+
+   
+   Basic PID Control class. This class produces a basic PID controller
+   that takes the state as it is measured and executes a pid policy on it.
+
+
+   :Parameters:
+
+       **pid** : Tuple[float, float, float]
+           kp, ki, kd gains for the controller
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+   .. py:method:: policy(self, state: numpy.ndarray, dt: float) -> Tuple[float, dict]
+
+      
+      PID policy. This just calls `do_pid` on the state, but you can
+      add data collection values to it.
+
+
+      :Parameters:
+
+          **state** : np.ndarray
+              system state
+
+          **dt** : float
+              control timestep
+
+      :Returns:
+
+          Tuple[float, dict]
+              action, data pair
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+.. py:class:: PID_UKF(pid: Tuple[float, float, float], pend, dt: float, var_t: float)
+
+   Bases: :py:obj:`Controller`
+
+   
+   PID controller with unscented kalman filter. The unscented kalman filter
+   uses variance on the scale of `var_t` to get the measurement noise estimate.
+   (`var_t` is a measurement of time in seconds.)
+
+
+   :Parameters:
+
+       **pid** : Tuple[float, float, float]
+           kp, ki, kd gains for the controller
+
+       **pend** : [type]
+           object containing the pendulum under control.
+
+       **dt** : float
+           control timestep
+
+       **var_t** : float
+           window over which to collect the measurement
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+   .. py:method:: policy(self, state: numpy.ndarray, dt: float) -> Tuple[float, dict]
+
+      
+      Measure variance from prior states over `var_t`, then use that variance
+      to compute an estimated state with an unscented kalman filter. The measured
+      state is then used for the PID control policy.
+
+
+      :Parameters:
+
+          **state** : np.ndarray
+              system state
+
+          **dt** : float
+              timestep
+
+      :Returns:
+
+          Tuple[float, dict]
+              action, data pair
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+.. py:class:: LQR_UKF(qr: Tuple[numpy.ndarray, float], lqrw: int, pend, dt: float, var_t: float)
+
+   Bases: :py:obj:`Controller`
+
+   
+   LQR controller with unscented kalman filter state estimation.
+
+
+   :Parameters:
+
+       **qr** : Tuple[np.ndarray, float]
+           tuple of (Q, R) matrices. In this case R is a 1x1 matrix or float.
+
+       **lqrw** : int
+           the window over which to perform LQR. Longer windows are more accurate,
+           because they take into account a longer approximation of the system
+           response. However, they take more time to compute and can be numerically
+           unstable.
+
+       **pend** : pendsim.sim.Pendulum
+           pendulum object with jacobians of A and B matrices.
+
+       **dt** : float
+           control timestep
+
+       **var_t** : float
+           window over which to collect variances, in units of seconds.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+   .. py:method:: policy(self, state: numpy.ndarray, dt: float) -> Tuple[float, dict]
+
+      
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+.. py:class:: LQR(pend: pendsim.sim.Pendulum, dt: float, window: int, Q: numpy.ndarray, R: numpy.ndarray)
+
+   Bases: :py:obj:`Controller`
+
+   
+   Perform an LQR strategy.
+
+
+   :Parameters:
+
+       **pend** : pendsim.sim.Pendulum
+           The pendulum we want to control
+
+       **dt** : float
+           Timestep of the simulation
+
+       **window** : int
+           the window over which to perform LQR. For example; `window=5` will
+           optimize over 5 timesteps
+
+       **Q** : np.ndarray
+           State cost array
+
+       **R** : np.ndarray
+           Actuation cost array
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+   .. py:method:: policy(self, state: numpy.ndarray, dt: float) -> Tuple[float, dict]
+
+      
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+.. py:class:: LQRSwingup(pend: pendsim.sim.Pendulum, dt: float, window: int, Q: numpy.ndarray, R: numpy.ndarray, k: float, thresh: float = np.pi / 4)
+
+   Bases: :py:obj:`Controller`
+
+   
+   [summary]
+
+
+   :Parameters:
+
+       **pend** : pendsim.sim.Pendulum
+           pendulum object
+
+       **dt** : float
+           simulation timestep
+
+       **window** : int
+           the LQR window
+
+       **Q** : np.ndarray
+           State cost array
+
+       **R** : np.ndarray
+           Actuation cost array
+
+       **k** : float
+           swing up gain
+
+       **thresh** : float, optional
+           threshold for swing-up, above this angular value, the controller
+           will attempt to swing itself upright; below it, it will perform
+           an LQR control strategy.     by default np.pi/4
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+   .. py:method:: policy(self, state: numpy.ndarray, dt: float) -> Tuple[float, dict]
+
+      
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+.. py:class:: NoController
+
+   Bases: :py:obj:`Controller`
+
+   
+   "No Controller" controller. This guy does nothing, 0 action, at
+   every timestep.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+   .. py:method:: policy(self, state: numpy.ndarray, dt: float)
+
+      
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+.. py:class:: BangBang(magnitude: float, setpoint: float = 0, threshold: float = np.pi / 4)
+
+   Bases: :py:obj:`Controller`
+
+   
+   BangBang control strategy. If the pendulum is within a threshold given
+   by `threshold`, push as hard as possible to get it to vertical. When it
+   passes over `theta`, push the other way.
+
+   This is what your air conditioner uses and it's probably not ideal for the
+   fast dynamics at hand here.
+
+   :Parameters:
+
+       **magnitude** : float
+           magnitude of the push.
+
+       **setpoint** : float, optional
+           setpoint around which to push. 0 by default
+
+       **threshold** : float, optional
+           threshold; if the pendulum falls above the threshold (i.e. if it falls over)
+           this prevents the controller from taking continous action. By default np.pi/4
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+   .. py:method:: policy(self, state: numpy.ndarray, dt: float) -> Tuple[float, dict]
+
+      
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
